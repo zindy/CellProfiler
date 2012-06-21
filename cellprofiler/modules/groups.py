@@ -135,7 +135,10 @@ class Groups(cpm.CPModule):
             self.metadata_keys[column_name] = list(metadata_keys)
         self.update_tables()
         for group in self.grouping_metadata:
-            group.metadata_choice.test_valid(self.pipeline)
+            try:
+                group.metadata_choice.test_valid(self.pipeline)
+            except:
+                pass
         
     def on_deactivated(self):
         self.pipeline = None
