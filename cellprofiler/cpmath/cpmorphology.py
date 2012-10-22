@@ -39,6 +39,23 @@ eight_connect = scind.generate_binary_structure(2, 2)
 '''A structuring element for four-connecting a neigborhood'''
 four_connect = scind.generate_binary_structure(2, 1)
 
+if np.version >= '1.6.0':
+    bincount = np.bincount
+else:
+    def bincount(x, weights=None, minlength=None):
+        '''Replacement for numpy.bincount for numpy < 1.6
+        
+        see numpy.bincount for full documentation
+        
+        x - the bin labels
+        weights - the weight per bin label
+        minlength - the size of the vector to return
+        '''
+        result = np.bincount(x, weights)
+        if minlength is None or len(result) >= minlength:
+            return result
+        return np.hstack((result, np.zeros(minlength - len(result))))
+    
 def fill_labeled_holes(labels, mask=None, size_fn = None):
     '''Fill all background pixels that are holes inside the foreground
  
