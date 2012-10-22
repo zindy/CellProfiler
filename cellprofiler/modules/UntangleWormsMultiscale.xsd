@@ -33,6 +33,11 @@
           <xs:documentation>Maximum allowed cost for a worm.</xs:documentation>
         </xs:annotation>
       </xs:element>
+      <xs:element name="single-worm-cost-threshold" type="xs:double">
+        <xs:annotation>
+          <xs:documentation>Maximum allowed cost for a single worm.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
       <xs:element name="num-control-points" type="xs:positiveInteger">
         <xs:annotation>
           <xs:documentation>Number of control points to be sampled per worm.</xs:documentation>

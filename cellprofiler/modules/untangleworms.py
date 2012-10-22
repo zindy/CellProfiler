@@ -106,6 +106,8 @@ T_MAX_AREA = "max-area"
 V_MAX_AREA = "max_area"
 T_COST_THRESHOLD = "cost-threshold"
 V_COST_THRESHOLD = "cost_threshold"
+T_SINGLE_WORM_COST_THRESHOLD = "single-worm-cost-threshold"
+V_SINGLE_WORM_COST_THRESHOLD = "single_worm_cost_threshold"
 T_NUM_CONTROL_POINTS = "num-control-points"
 V_NUM_CONTROL_POINTS = "num_control_points"
 T_FEATURE_MEANS = "feature-means"
@@ -135,6 +137,7 @@ ALL_SCALARS = (
             (T_MIN_AREA, V_MIN_AREA, float),
             (T_MAX_AREA, V_MAX_AREA, float),
             (T_COST_THRESHOLD, V_COST_THRESHOLD, float),
+            (T_SINGLE_WORM_COST_THRESHOLD, V_SINGLE_WORM_COST_THRESHOLD, float),
             (T_NUM_CONTROL_POINTS, V_NUM_CONTROL_POINTS, int),
             (T_MAX_RADIUS, V_MAX_RADIUS, float),
             (T_MAX_SKEL_LENGTH, V_MAX_SKEL_LENGTH, float),
@@ -557,6 +560,23 @@ class UntangleWorms(cpm.CPModule):
         else:
             return self.num_control_points.value
         
+    def length_feature_idx(self):
+        '''The index in the feature vector of the length feature'''
+        return self.ncontrol_points() - 2
+    
+    def width_feature_idxs(self):
+        '''Return a slice that chooses the width features from the feature vector'''
+        n_widths = self.ncontrol_points() - 1
+        return slice(self.length_feature_idx() + 1, 
+                     self.length_feature_idx() + 1 + n_widths)
+    
+    def width_sd_feature_idxs(self):
+        '''Return a slice that chooses the width standard deviations from the fv'''
+        n_widths = self.ncontrol_points() - 1
+        return slice(self.length_feature_idx() + 1 + n_widths, 
+                     self.length_feature_idx() + 1 + n_widths*2)
+        
+        
     @property
     def max_complexity(self):
         if self.complexity != C_CUSTOM:
@@ -607,13 +627,14 @@ class UntangleWorms(cpm.CPModule):
             mask = labels == i
             graph = self.get_graph_from_binary(
                 image.pixel_data & mask, skeleton & mask)
-            path_coords, path = self.get_longest_path_coords(
+            path_coords, path, bp_indices = self.get_longest_path_coords(
                 graph, np.iinfo(int).max)
             if len(path_coords) < (num_control_points + 1) * 2:
                 # Can't compute meaningful width standard deviation.
                 continue
             cumul_lengths = self.calculate_cumulative_lengths(path_coords)
-            if cumul_lengths[-1] == 0:
+            total_length = cumul_lengths[-1]
+            if total_length == 0:
                 continue
             control_points, indices = self.sample_control_points(
                 path_coords, cumul_lengths, num_control_points)
@@ -635,7 +656,8 @@ class UntangleWorms(cpm.CPModule):
                               (ci1, cj1, fi * fj)):
                 radial_profile += distances[ii, jj] * f
             widths, width_sd = self.calculate_widths(
-                indices, distances[path_coords[:, 0], path_coords[:, 1]])
+                indices, distances[path_coords[:, 0], path_coords[:, 1]],
+                total_length)
             
             worms.append(self.TrainingData(
                 areas[i], cumul_lengths[-1], angles, 
@@ -752,6 +774,7 @@ class UntangleWorms(cpm.CPModule):
                 (T_MIN_AREA, min_area),
                 (T_MAX_AREA, max_area),
                 (T_COST_THRESHOLD, max_cost),
+                (T_SINGLE_WORM_COST_THRESHOLD, max_cost),
                 (T_NUM_CONTROL_POINTS, num_control_points),
                 (T_MAX_SKEL_LENGTH, max_skel_length),
                 (T_MIN_PATH_LENGTH, min_length),
@@ -853,13 +876,15 @@ class UntangleWorms(cpm.CPModule):
                     # Completely exclude the worm
                     continue
                 elif areas[i] <= params.max_area:
-                    path_coords, path_struct = self.single_worm_find_path(
-                        workspace, labels, i, skeleton, params)
+                    path_coords, path_struct, bp_indices =\
+                        self.single_worm_find_path(
+                            workspace, labels, i, skeleton, params)
                     leftover_count = skeleton_areas[i] - path_coords.shape[0]
                     leftover_cost = self.leftover_weight(params) * leftover_count
                     if len(path_coords) > 0 and self.single_worm_filter(
                         workspace, path_coords, 
                         distance[path_coords[:,0], path_coords[:,1]],
+                        bp_indices,
                         leftover_cost,
                         params):
                         all_path_coords.append(path_coords)
@@ -1423,13 +1448,13 @@ class UntangleWorms(cpm.CPModule):
         current_max_length = 0
         current_path = None
         for path in path_list:
-            path_coords = self.path_to_pixel_coords(graph_struct, path)
+            path_coords, bp_indices = self.path_to_pixel_coords(graph_struct, path)
             path_length = self.calculate_path_length(path_coords)
             if path_length >= current_max_length:
                 current_longest_path_coords = path_coords
                 current_max_length = path_length
                 current_path = path
-        return current_longest_path_coords, current_path
+        return current_longest_path_coords, current_path, bp_indices
     
     def path_to_pixel_coords(self, graph_struct, path):
         '''Given a structure describing paths in a graph, converts those to a 
@@ -1463,7 +1488,7 @@ class UntangleWorms(cpm.CPModule):
         of one segment and the beginning of the next.'''
         
         if len(path.segments) == 1:
-            return graph_struct.segments[path.segments[0]][0]
+            return graph_struct.segments[path.segments[0]][0], np.zeros(0, int)
         
         direction = graph_struct.incidence_directions[path.branch_areas[0],
                                                       path.segments[0]]
@@ -1472,7 +1497,7 @@ class UntangleWorms(cpm.CPModule):
             direction = not graph_struct.incidence_directions[branch_area,
                                                               segment]
             result.append(graph_struct.segments[segment][direction])
-        return np.vstack(result)
+        return np.vstack(result), np.array([x.shape[0] for x in result[:-1]], int)
 
     def calculate_path_length(self, path_coords):
         '''Return the path length, given path coordinates as Nx2'''
@@ -1488,7 +1513,7 @@ class UntangleWorms(cpm.CPModule):
             np.cumsum(np.sqrt(np.sum((path_coords[:-1]-path_coords[1:])**2,1)))))
     
     def single_worm_filter(
-        self, workspace, path_coords, distances, leftover_cost, params):
+        self, workspace, path_coords, distances, bp_indices, leftover_cost, params):
         '''Given a path representing a single worm, caculates its shape cost, and
         either accepts it as a worm or rejects it, depending on whether or not
         the shape cost is higher than some threshold.
@@ -1499,6 +1524,8 @@ class UntangleWorms(cpm.CPModule):
         
         distances: a vector of length N giving the shortest distance from each
                    coordinate to the background.
+                   
+        bp_indices: indexes of the branchpoints in the path coordinates
                    
         leftover_cost: cost of skeleton pieces not in path
 
@@ -1526,13 +1553,14 @@ class UntangleWorms(cpm.CPModule):
         total_length = cumul_lengths[-1]
         control_coords, indices = self.sample_control_points(
             path_coords, cumul_lengths, params.num_control_points)
-        widths, width_sd = self.calculate_widths(indices, distances)
+        widths, width_sd = self.calculate_widths(
+            indices, distances, total_length, bp_indices, params)
         cost = self.calculate_angle_shape_cost(
             control_coords, total_length, widths, width_sd,
             params.feature_means, params.feature_sd,
             params.inv_angles_covariance_matrix)
         cost += leftover_cost
-        return cost < params.cost_threshold
+        return cost < params.single_worm_cost_threshold
 
     def sample_control_points(self, path_coords, cumul_lengths, num_control_points):
         '''Sample equally-spaced control points from the Nx2 path coordinates
@@ -1592,12 +1620,19 @@ class UntangleWorms(cpm.CPModule):
         indices[fracs > .5] += 1
         return sampled, np.hstack(([0], indices, [path_coords.shape[0]-1]))
     
-    def calculate_widths(self, indices, distances):
+    def calculate_widths(self, indices, distances, total_length,
+                         bp_indices = None, params = None):
         '''Return the estimated width and sd of width between control pts
         
         indices - the indexes of the closest path coord to each control pt
         
         distances - distance to the edge of the worm at each path coord
+        
+        total_length - length of worm
+        
+        bp_indices - the indexes of any branch points
+        
+        params - the training set parameters
         
         returns the mean width and sd between successive control points
         '''
@@ -1615,6 +1650,21 @@ class UntangleWorms(cpm.CPModule):
             morph.bincount(labels, 
                            normalized_distances * normalized_distances, 
                            n_widths) / areas)
+        if bp_indices is not None and len(bp_indices) > 0:
+            widths_with_bp = labels[bp_indices]
+            length_idx = self.length_feature_idx()
+            length_feature = \
+                ((total_length - params.feature_means[length_idx]) /
+                 params.feature_sd[length_idx])
+                              
+            fv_estimate = \
+                length_feature * params.covariance_matrix[length_idx, :]
+            fv_estimate = \
+                (fv_estimate * params.feature_sd) + params.feature_means
+            width_estimates = fv_estimate[self.width_feature_idxs()]
+            width_sd_estimates = fv_estimate[self.width_sd_feature_idxs()]
+            widths[widths_with_bp] = width_estimates[widths_with_bp]
+            width_sds[widths_with_bp] = width_sd_estimates[widths_with_bp]
         return widths, width_sds
 
     def calculate_angle_shape_cost(
@@ -1997,7 +2047,7 @@ class UntangleWorms(cpm.CPModule):
         #
         paths_and_costs = []
         for i, path in enumerate(paths):
-            current_path_coords = self.path_to_pixel_coords(graph, path)
+            current_path_coords, bp_indices = self.path_to_pixel_coords(graph, path)
             cumul_lengths = self.calculate_cumulative_lengths(current_path_coords)
             total_length = cumul_lengths[-1]
             if total_length > max_path_length or total_length < min_path_length:
@@ -2005,8 +2055,12 @@ class UntangleWorms(cpm.CPModule):
             control_coords, indices = self.sample_control_points(
                 current_path_coords, cumul_lengths, num_control_points)
             widths, width_sd = self.calculate_widths(
-                indices, distance[current_path_coords[:, 0],
-                                  current_path_coords[:, 1]])
+                indices, 
+                distance[current_path_coords[:, 0],
+                                  current_path_coords[:, 1]],
+                total_length,
+                bp_indices,
+                params)
             #
             # Calculate the shape cost
             #
@@ -2041,7 +2095,7 @@ class UntangleWorms(cpm.CPModule):
             overlap_weight, leftover_weight, max_num_worms)
         selected_paths =  [paths_and_costs[order[i]][0]
                            for i in current_best_subset]
-        path_coords_selected = [ self.path_to_pixel_coords(graph, path)
+        path_coords_selected = [ self.path_to_pixel_coords(graph, path)[0]
                                  for path in selected_paths]
         return path_coords_selected
         
@@ -2279,29 +2333,19 @@ class UntangleWorms(cpm.CPModule):
         all_control_coords_y = []
         for path in all_path_coords:
             cumul_lengths = self.calculate_cumulative_lengths(path)
-            #
-            # TO_DO: instead of reconstructing the worm from radii, find the
-            #        angles and length, replace the standard deviation and
-            #        width by zero, multiply that feature vector by the
-            #        covariance matrix and use the width errors to estimate
-            #        the widths at each control point.
-            #
+            total_length = cumul_lengths[-1]
             control_coords, indices = self.sample_control_points(
                 path, cumul_lengths,  num_control_points)
             angles = self.get_angles(control_coords)
-            if True:
-                ii,jj = self.rebuild_worm_from_control_points_approx(
-                    control_coords, angles, cumul_lengths[-1], params, shape)
-            else:
-                # Just output the labeled skeletons
-                ii, jj = path[:, 0], path[:, 1]
+            ii,jj = self.rebuild_worm_from_control_points_approx(
+                control_coords, angles, total_length, params, shape)
             all_i.append(ii)
             all_j.append(jj)
             all_lengths.append(cumul_lengths[-1])
             all_angles.append(angles)
             
             w, wsd = self.calculate_widths(
-                indices, distances[path[:, 0], path[:, 1]])
+                indices, distances[path[:, 0], path[:, 1]], total_length)
             all_widths.append(w)
             all_width_sd.append(wsd)
             all_control_coords_x.append(control_coords[:,1])
@@ -2735,7 +2779,7 @@ def recalculate_single_worm_control_points(all_labels, ncontrolpoints):
             mask = (labels == object_number)
             skeleton = morph.skeletonize(mask)
             graph = module.get_graph_from_binary(mask, skeleton)
-            path_coords, path = module.get_longest_path_coords(
+            path_coords, path, bp_indices = module.get_longest_path_coords(
                 graph, np.iinfo(int).max)
             if len(path_coords) == 0:
                 # return NaN for the control points
