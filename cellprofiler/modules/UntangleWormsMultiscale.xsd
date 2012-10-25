@@ -38,6 +38,16 @@
           <xs:documentation>Maximum allowed cost for a single worm.</xs:documentation>
         </xs:annotation>
       </xs:element>
+      <xs:element name="pca-cost-threshold" type="xs:double">
+        <xs:annotation>
+          <xs:documentation>Maximum allowed cost for a worm.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="pca-single-worm-cost-threshold" type="xs:double">
+        <xs:annotation>
+          <xs:documentation>Maximum allowed cost for a single worm.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
       <xs:element name="num-control-points" type="xs:positiveInteger">
         <xs:annotation>
           <xs:documentation>Number of control points to be sampled per worm.</xs:documentation>
@@ -48,6 +58,7 @@
       <xs:element name="max-path-length" type="xs:decimal"/>
       <xs:element name="median-worm-area" type="xs:decimal"/>
       <xs:element name="max-radius" type="xs:decimal"/>
+      <xs:element name="num-components" type="xs:positiveInteger"/>
       <xs:element name="overlap-weight" type="xs:decimal"/>
       <xs:element name="leftover-weight" type="xs:decimal"/>
       <xs:element name="training-set-size" type="xs:positiveInteger">
@@ -84,6 +95,16 @@
       <xs:element name="inv-angles-covariance-matrix" type="double-matrix">
         <xs:annotation>
           <xs:documentation>The inverse covariance matrix of angles and length which is used to score shapes.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="components" type="double-matrix">
+        <xs:annotation>
+          <xs:documentation>The principal components matrix.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="eigenvalues" type="double-vector">
+        <xs:annotation>
+          <xs:documentation>The eigenvalues of the principal components</xs:documentation>
         </xs:annotation>
       </xs:element>
     </xs:sequence>

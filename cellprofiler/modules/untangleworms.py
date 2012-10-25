@@ -108,11 +108,19 @@ T_COST_THRESHOLD = "cost-threshold"
 V_COST_THRESHOLD = "cost_threshold"
 T_SINGLE_WORM_COST_THRESHOLD = "single-worm-cost-threshold"
 V_SINGLE_WORM_COST_THRESHOLD = "single_worm_cost_threshold"
+T_PCA_COST_THRESHOLD = "pca-cost-threshold"
+V_PCA_COST_THRESHOLD = "pca_cost_threshold"
+T_PCA_SINGLE_WORM_COST_THRESHOLD = "pca-single-worm-cost-threshold"
+V_PCA_SINGLE_WORM_COST_THRESHOLD = "pca_single_worm_cost_threshold"
 T_NUM_CONTROL_POINTS = "num-control-points"
 V_NUM_CONTROL_POINTS = "num_control_points"
 T_FEATURE_MEANS = "feature-means"
 T_FEATURE_SD = "feature-sd"
 T_INV_ANGLES_COVARIANCE_MATRIX = "inv-angles-covariance-matrix"
+T_COMPONENTS = "components"
+T_EIGENVALUES = "eigenvalues"
+T_NUM_COMPONENTS = "num-components"
+V_NUM_COMPONENTS = "num_components"
 T_MAX_SKEL_LENGTH = "max-skel-length"
 V_MAX_SKEL_LENGTH = "max_skel_length"
 T_MAX_RADIUS = "max-radius"
@@ -138,8 +146,11 @@ ALL_SCALARS = (
             (T_MAX_AREA, V_MAX_AREA, float),
             (T_COST_THRESHOLD, V_COST_THRESHOLD, float),
             (T_SINGLE_WORM_COST_THRESHOLD, V_SINGLE_WORM_COST_THRESHOLD, float),
+            (T_PCA_COST_THRESHOLD, V_PCA_COST_THRESHOLD, float),
+            (T_PCA_SINGLE_WORM_COST_THRESHOLD, V_PCA_SINGLE_WORM_COST_THRESHOLD, float),
             (T_NUM_CONTROL_POINTS, V_NUM_CONTROL_POINTS, int),
             (T_MAX_RADIUS, V_MAX_RADIUS, float),
+            (T_NUM_COMPONENTS, V_NUM_COMPONENTS, int),
             (T_MAX_SKEL_LENGTH, V_MAX_SKEL_LENGTH, float),
             (T_MIN_PATH_LENGTH, V_MIN_PATH_LENGTH, float),
             (T_MAX_PATH_LENGTH, V_MAX_PATH_LENGTH, float),
@@ -165,7 +176,7 @@ complexity_limits = {
 
 class UntangleWorms(cpm.CPModule):
     
-    variable_revision_number = 2
+    variable_revision_number = 3
     category = ["Object Processing","Worm Toolbox"]
     module_name = "UntangleWorms"
     def create_settings(self):
@@ -460,6 +471,13 @@ class UntangleWorms(cpm.CPModule):
             Enter the maximum number of segments of any cluster that should
             be processed.""")
         
+        self.use_pca = cps.Binary(
+            "Use PCA to score", cps.NO, 
+            doc = "Use the weights of the eigenvectors to score paths")
+        self.n_components = cps.Integer(
+            "# PCA components", 20, minval=1,
+            doc = "# of components in the PCA model")
+        
     def settings(self):
         return [self.image_name, self.overlap, self.overlap_objects,
                 self.nonoverlapping_objects, self.training_set_directory,
@@ -477,7 +495,8 @@ class UntangleWorms(cpm.CPModule):
                 self.max_cost_percentile, self.max_cost_factor,
                 self.num_control_points, self.max_radius_percentile,
                 self.max_radius_factor,
-                self.complexity, self.custom_complexity]
+                self.complexity, self.custom_complexity,
+                self.use_pca, self.n_components]
     
     def help_settings(self):
         return [self.mode, self.image_name, self.overlap, self.overlap_objects,
@@ -497,7 +516,7 @@ class UntangleWorms(cpm.CPModule):
                 self.max_length_percentile, self.max_length_factor,
                 self.max_cost_percentile, self.max_cost_factor,
                 self.num_control_points, self.max_radius_percentile,
-                self.max_radius_factor]
+                self.max_radius_factor, self.use_pca, self.n_components]
     
     def visible_settings(self):
         result = [self.mode, self.image_name]
@@ -530,6 +549,11 @@ class UntangleWorms(cpm.CPModule):
                     self.max_cost_percentile, self.max_cost_factor,
                     self.num_control_points, self.max_radius_percentile,
                     self.max_radius_factor]
+        if self.mode == MODE_UNTANGLE:
+            result += [self.use_pca]
+        if self.use_pca.value or self.mode == MODE_TRAIN:
+            result += [self.n_components]
+            
         return result
 
     def overlap_weight(self, params):
@@ -560,6 +584,27 @@ class UntangleWorms(cpm.CPModule):
         else:
             return self.num_control_points.value
         
+    def num_components(self):
+        '''# of components for PCA'''
+        if self.mode == MODE_UNTANGLE and self.wants_training_set_weights:
+            params = self.read_params()
+            return params.num_components
+        else:
+            return self.n_components.value
+        
+    def cost_threshold(self, params):
+        '''The appropriate cost threshold for worm clusters'''
+        if self.use_pca:
+            return params.pca_cost_threshold
+        else:
+            return params.cost_threshold
+        
+    def single_worm_cost_threshold(self, params):
+        if self.use_pca:
+            return params.pca_single_worm_cost_threshold
+        else:
+            return params.single_worm_cost_threshold
+            
     def length_feature_idx(self):
         '''The index in the feature vector of the length feature'''
         return self.ncontrol_points() - 2
@@ -746,15 +791,35 @@ class UntangleWorms(cpm.CPModule):
             width_sd = np.hstack([width_sd]*4)
             feat_vectors = np.row_stack((
                 angles, lengths, widths, width_sd))
+            
+            import time
+            path = os.path.join(cpprefs.get_default_output_directory(),
+                                time.strftime("fv_%Y_%m_%d_%H_%M_%S"))
+            np.save(path, feat_vectors.transpose())
             feature_means = np.mean(feat_vectors, 1)
             feature_sd = np.std(feat_vectors, 1)
             fv_adjusted = self.normalize(feat_vectors, feature_means, feature_sd)
-            angles_covariance_matrix = np.cov(fv_adjusted)
-            inv_angles_covariance_matrix = np.linalg.inv(angles_covariance_matrix)
-            angle_costs = [np.dot(np.dot(fv, inv_angles_covariance_matrix), fv)
-                           for fv in fv_adjusted.transpose()]
-            max_cost = this.max_cost_factor.value * mlab.prctile(
-                angle_costs, this.max_cost_percentile.value)
+            class Q(object):
+                pass
+            params = Q()
+            params.covariance_matrix = np.cov(fv_adjusted)
+            params.inv_angles_covariance_matrix = np.linalg.inv(
+                params.covariance_matrix)
+            U, S, V = np.linalg.svd(fv_adjusted.transpose())
+            params.components = V
+            params.eigenvalues = S
+            params.inv_eigenvalues = {}
+            params.inv_components = {}
+            for use_pca, attr, swattr in (
+                (False, "cost_threshold", "single_worm_cost_threshold"),
+                (True, "pca_cost_threshold", "pca_single_worm_cost_threshold")):
+                angle_costs = [
+                    self.score_fv(fv, params, normalize=False, use_pca=use_pca)
+                    for fv in fv_adjusted.transpose()]
+                cost_threshold = this.max_cost_factor.value * mlab.prctile(
+                    angle_costs, this.max_cost_percentile.value)
+                for x in (attr, swattr):
+                    setattr(params, x, cost_threshold)
             #
             # Write it to disk
             #
@@ -773,14 +838,17 @@ class UntangleWorms(cpm.CPModule):
                 (T_VERSION,  version_number),
                 (T_MIN_AREA, min_area),
                 (T_MAX_AREA, max_area),
-                (T_COST_THRESHOLD, max_cost),
-                (T_SINGLE_WORM_COST_THRESHOLD, max_cost),
+                (T_COST_THRESHOLD, params.cost_threshold),
+                (T_SINGLE_WORM_COST_THRESHOLD, params.single_worm_cost_threshold),
+                (T_PCA_COST_THRESHOLD, params.pca_cost_threshold),
+                (T_PCA_SINGLE_WORM_COST_THRESHOLD, params.pca_single_worm_cost_threshold),
                 (T_NUM_CONTROL_POINTS, num_control_points),
                 (T_MAX_SKEL_LENGTH, max_skel_length),
                 (T_MIN_PATH_LENGTH, min_length),
                 (T_MAX_PATH_LENGTH, max_length),
                 (T_MEDIAN_WORM_AREA, median_area),
                 (T_MAX_RADIUS, max_radius),
+                (T_NUM_COMPONENTS, self.num_components()),
                 (T_OVERLAP_WEIGHT, this.override_overlap_weight.value),
                 (T_LEFTOVER_WEIGHT, this.override_leftover_weight.value),
                 (T_TRAINING_SET_SIZE, nworms)):
@@ -790,7 +858,7 @@ class UntangleWorms(cpm.CPModule):
                 top.appendChild(element)
             for tag, values in ((T_FEATURE_MEANS, feature_means),
                                 (T_FEATURE_SD, feature_sd),
-                                (T_RADII_FROM_TRAINING, mean_radial_profiles)):
+                                (T_RADII_FROM_TRAINING, mean_radial_profile)):
                 element = doc.createElement(tag)
                 top.appendChild(element)
                 for value in values:
@@ -798,9 +866,12 @@ class UntangleWorms(cpm.CPModule):
                     content = doc.createTextNode("%.8f" % value)
                     value_element.appendChild(content)
                     element.appendChild(value_element)
+            #
+            # Inverse covariance matrix
+            #
             element = doc.createElement(T_INV_ANGLES_COVARIANCE_MATRIX)
             top.appendChild(element)
-            for row in inv_angles_covariance_matrix:
+            for row in params.inv_angles_covariance_matrix:
                 values = doc.createElement(T_VALUES)
                 element.appendChild(values)
                 for col in row:
@@ -808,6 +879,30 @@ class UntangleWorms(cpm.CPModule):
                     content = doc.createTextNode("%.8f"%col)
                     value.appendChild(content)
                     values.appendChild(value)
+            #
+            # Principal components matrix
+            #
+            element = doc.createElement(T_COMPONENTS)
+            top.appendChild(element)
+            for row in params.components:
+                values = doc.createElement(T_VALUES)
+                element.appendChild(values)
+                for col in row:
+                    value = doc.createElement(T_VALUE)
+                    content = doc.createTextNode("%.8f"%col)
+                    value.appendChild(content)
+                    values.appendChild(value)
+            #
+            # Eigenvalues
+            #
+            element = doc.createElement(T_EIGENVALUES)
+            top.appendChild(element)
+            for eigenvalue in params.eigenvalues:
+                value = doc.createElement(T_VALUE)
+                content = doc.createTextNode("%.8f" % eigenvalue)
+                value.appendChild(content)
+                element.appendChild(value)
+                
             doc.writexml(fd, addindent="  ", newl="\n")
             fd.close()
             if workspace.frame is not None:
@@ -831,12 +926,47 @@ class UntangleWorms(cpm.CPModule):
                 a.set_title("Angles")
                 a = f.add_subplot(1,4,4)
                 a.set_position((Bbox([[.65, .1],[1, .45]])))
-                a.imshow(angles_covariance_matrix[:-1,:-1], 
+                a.imshow(params.covariance_matrix[:-1,:-1], 
                          interpolation="nearest")
                 a.set_title("Covariance")
                 f.canvas.draw()
                 figure.Refresh()
             
+    def score_fv(self, fv, params, normalize=True, use_pca = None):
+        '''Return a score for the feature vector
+        
+        fv - feature vector of angles, length, widths and width_sd
+        
+        params - the parameters needed for scoring
+        
+        normalize - True to normalize the feature vector using means and sd
+        
+        use_pca - True to score using PCA, False to score using covariance and
+                  None to use the module's method
+        '''
+        if normalize:
+            fv = self.normalize(fv, params.feature_means, params.feature_sd)
+        if self.use_pca if use_pca is None else use_pca:
+            num_components = self.num_components()
+            if num_components in params.inv_components:
+                inv_components = params.inv_components[num_components]
+            else:
+                inv_components = np.linalg.pinv(
+                    params.components[:num_components, :])
+                params.inv_components[num_components] = inv_components
+            if num_components in params.inv_eigenvalues:
+                inv_eigenvalues = params.inv_eigenvalues[num_components]
+            else:
+                inv_eigenvalues =  \
+                    1 / (params.eigenvalues[:num_components] + 
+                         np.finfo(float).eps)
+                params.inv_eigenvalues[num_components] = inv_eigenvalues
+            w_approx = np.dot(fv, inv_components)
+            pc = np.dot(w_approx, w_approx * inv_eigenvalues)
+            return pc
+        else:
+            return np.dot(np.dot(fv, params.inv_angles_covariance_matrix), fv)
+        
     def run_untangle(self, workspace):
         '''Untangle based on the current image set'''
         params = self.read_params()
@@ -1556,11 +1686,9 @@ class UntangleWorms(cpm.CPModule):
         widths, width_sd = self.calculate_widths(
             indices, distances, total_length, bp_indices, params)
         cost = self.calculate_angle_shape_cost(
-            control_coords, total_length, widths, width_sd,
-            params.feature_means, params.feature_sd,
-            params.inv_angles_covariance_matrix)
+            control_coords, total_length, widths, width_sd, params)
         cost += leftover_cost
-        return cost < params.single_worm_cost_threshold
+        return cost < self.single_worm_cost_threshold(params)
 
     def sample_control_points(self, path_coords, cumul_lengths, num_control_points):
         '''Sample equally-spaced control points from the Nx2 path coordinates
@@ -1668,9 +1796,7 @@ class UntangleWorms(cpm.CPModule):
         return widths, width_sds
 
     def calculate_angle_shape_cost(
-        self, control_coords, total_length, widths, width_sd,
-        feature_means, feature_sd, 
-        inv_angles_covariance_matrix):
+        self, control_coords, total_length, widths, width_sd, params):
         '''% Calculates a shape cost based on the angle shape cost model.
         
         Given a set of N control points, calculates the N-2 angles between 
@@ -1733,8 +1859,7 @@ class UntangleWorms(cpm.CPModule):
         
         angles = self.get_angles(control_coords)
         feat_vec = np.hstack((angles, [total_length], widths, width_sd))
-        feat_vec = self.normalize(feat_vec, feature_means, feature_sd)
-        return np.dot(np.dot(feat_vec, inv_angles_covariance_matrix), feat_vec)
+        return self.score_fv(feat_vec, params, True)
     
     def get_angles(self, control_coords):
         '''Extract the angles at each interior control point
@@ -2066,9 +2191,8 @@ class UntangleWorms(cpm.CPModule):
             #
             current_shape_cost = self.calculate_angle_shape_cost(
                 control_coords, total_length, 
-                widths, width_sd, feature_means, feature_sd,
-                inv_angles_covariance_matrix)
-            if current_shape_cost < params.cost_threshold:
+                widths, width_sd, params)
+            if current_shape_cost < self.cost_threshold(params):
                 paths_and_costs.append((path, current_shape_cost))
         
         if len(paths_and_costs) == 0:
@@ -2607,6 +2731,9 @@ class UntangleWorms(cpm.CPModule):
             # Added complexity
             setting_values = setting_values + [C_ALL, "400"]
             variable_revision_number = 2
+        if variable_revision_number == 2:
+            # added pca
+            setting_values = setting_values + [cps.NO, 20]
         return setting_values, variable_revision_number, from_matlab
     
 def read_params(training_set_directory, training_set_file_name, d):
@@ -2737,6 +2864,34 @@ def read_params(training_set_directory, training_set_file_name, d):
                             if text.nodeType == doc.TEXT_NODE])
             result.inv_angles_covariance_matrix[i,j] = float(text.strip())
     result.covariance_matrix = np.linalg.inv(result.inv_angles_covariance_matrix)
+    
+    elements = doc.documentElement.getElementsByTagName(T_EIGENVALUES)
+    assert len(elements) == 1
+    element = elements[0]
+    eigenvalues = []
+    for value_element in element.getElementsByTagName(T_VALUE):
+        text = "".join([text.data for text in value_element.childNodes
+                        if text.nodeType == doc.TEXT_NODE])
+        eigenvalues.append(float(text.strip()))
+    result.eigenvalues = np.array(eigenvalues)
+    result.inv_eigenvalues = {}
+    
+    elements = doc.documentElement.getElementsByTagName(T_COMPONENTS)
+    assert len(elements) == 1
+    element = elements[0]
+    components = []
+    for i, values_element in enumerate(
+        element.getElementsByTagName(T_VALUES)):
+        row = []
+        components.append(row)
+        for j, value_element in enumerate(
+            values_element.getElementsByTagName(T_VALUE)):
+            text = "".join([text.data for text in value_element.childNodes
+                            if text.nodeType == doc.TEXT_NODE])
+            row.append(float(text.strip()))
+    result.components = np.array(components)
+    result.inv_components = {}
+    result.inv_eigenvalues = {}
     d[file_name] = (result, timestamp)
     return result
     
