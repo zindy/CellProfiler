@@ -1908,6 +1908,9 @@ class Measurement(Setting):
         if image_name is None:
             image_name = self.get_image_name(pipeline, object_name, category,
                                              feature_name)
+            if image_name is None:
+                image_name = self.get_object_name(
+                    pipeline, object_name, category, feature_name)
         if category is None or feature_name is None:
             return []
         scales = set()
