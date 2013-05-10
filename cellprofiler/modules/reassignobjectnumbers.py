@@ -54,7 +54,9 @@ from cellprofiler.modules.identify import add_object_location_measurements
 from cellprofiler.modules.identify import C_PARENT, C_CHILDREN
 from cellprofiler.modules.identify import FF_CHILDREN_COUNT, FF_PARENT
 import cellprofiler.cpmath.cpmorphology as morph
-from cellprofiler.cpmath.filter import stretch
+from cellprofiler.cpmath.filter import stretch, sobel
+from cellprofiler.modules.identify import Identify
+from cellprofiler.cpmath.threshold import TM_METHODS
 import cellprofiler.cpmath.outline
 
 OPTION_UNIFY = "Unify"
@@ -65,11 +67,14 @@ UNIFY_PARENT = "Per-parent"
 
 CA_CENTROIDS = "Centroids"
 CA_CLOSEST_POINT = "Closest point"
+CA_GRADIENT = "Gradient"
 
-class ReassignObjectNumbers(cpm.CPModule):
+GRADIENT_SIGMA = 2.0
+
+class ReassignObjectNumbers(Identify):
     module_name = "ReassignObjectNumbers"
     category = "Object Processing"
-    variable_revision_number = 3
+    variable_revision_number = 4
     
     def create_settings(self):
         self.objects_name = cps.ObjectNameSubscriber(
@@ -155,7 +160,7 @@ class ReassignObjectNumbers(cpm.CPModule):
         
         self.where_algorithm = cps.Choice(
             "Method to find object intensity",
-            [CA_CLOSEST_POINT, CA_CENTROIDS],
+            [CA_CLOSEST_POINT, CA_CENTROIDS, CA_GRADIENT],
             doc = """
             <i>(Used only if a grayscale image is to be used as a guide for unification)</i><br>
             You can use one of two methods to determine whether two
@@ -187,6 +192,15 @@ class ReassignObjectNumbers(cpm.CPModule):
             An example of a feature that satisfies the above constraints is a line of
             pixels that connect two neighboring objects and is roughly the same intensity 
             as the boundary pixels of both (such as an axon connecting two neurons).</li>
+            <li><i>Gradient:</i> This method is designed to correct the same
+            sorts of splitting artifacts as <i>Centroids</i>, but takes a more
+            aggressive approach. An absolute gradient is calculated using
+            a Sobel filter of the smoothed image. MCT thresholding is then
+            used to determine a level that separates the strong gradient
+            at the edge of the object from other gradients. We then determine
+            whether the centroids of touching cells are separated by a 
+            sufficiently strong gradient.
+            </li>
             </ul>""")
         
         self.wants_outlines = cps.Binary(
@@ -200,6 +214,13 @@ class ReassignObjectNumbers(cpm.CPModule):
             'RelabeledNucleiOutlines',
             doc = """<i>(Used only if outlined are to be retained)</i><br>
             Enter a name that will allow the outlines to be selected later in the pipeline.""")
+        
+        self.create_threshold_settings(TM_METHODS)
+        #
+        # Use the original objects as the masking objects if per-object
+        # thresholding is done in CA_GRADIENT
+        #
+        self.masking_objects = self.objects_name
 
     def get_parent_choices(self,pipeline):
         columns = pipeline.get_measurement_columns()
@@ -224,7 +245,8 @@ class ReassignObjectNumbers(cpm.CPModule):
                 self.minimum_intensity_fraction,
                 self.where_algorithm, 
                 self.wants_outlines, self.outlines_name,
-                self.unify_option, self.parent_object]
+                self.unify_option, self.parent_object
+                ] + self.get_threshold_settings()
     
     def visible_settings(self):
         result = [self.objects_name, self.output_objects_name,
@@ -234,8 +256,11 @@ class ReassignObjectNumbers(cpm.CPModule):
             if self.unify_option == UNIFY_DISTANCE:
                 result += [self.distance_threshold, self.wants_image]
                 if self.wants_image:
-                    result += [self.image_name, self.minimum_intensity_fraction,
-                               self.where_algorithm]
+                    result += [self.image_name, self.where_algorithm]
+                    if self.where_algorithm in (CA_CENTROIDS, CA_CLOSEST_POINT):
+                        result += [self.minimum_intensity_fraction]
+                    elif self.where_algorithm == CA_GRADIENT:
+                        result += self.get_threshold_visible_settings()
             elif self.unify_option == UNIFY_PARENT:
                 result += [self.parent_object]
         result += [self.wants_outlines]
@@ -319,7 +344,12 @@ class ReassignObjectNumbers(cpm.CPModule):
         from cellprofiler.gui.cpfigure import renumber_labels_for_display
         import matplotlib.cm as cm
         
-        figure.set_subplots((1, 2))
+        if (self.relabel_option == OPTION_UNIFY and 
+            self.unify_option == UNIFY_DISTANCE and
+            self.wants_image and self.where_algorithm == CA_GRADIENT):
+            self.display_gradient(workspace, figure)
+            return
+        figure.set_subplots((2, 1))
         figure.subplot_imshow_labels(0,0, workspace.display_data.orig_labels,
                                      title = self.objects_name.value)
         
@@ -349,14 +379,83 @@ class ReassignObjectNumbers(cpm.CPModule):
                 image[output_labels > 0] / 4 * 3 +
                 output_image[output_labels > 0,:] / 4)
         
-            figure.subplot_imshow(0,1, image,
+            figure.subplot_imshow(1, 0, image,
                                   title = self.output_objects_name.value,
                                   sharexy = figure.subplot(0,0))
         else:
-            figure.subplot_imshow_labels(0,1, 
+            figure.subplot_imshow_labels(1, 0, 
                                          workspace.display_data.output_labels,
                                          title = self.output_objects_name.value,
                                          sharexy = figure.subplot(0,0))
+            
+    def display_gradient(self, workspace, figure):
+        '''Display using the gradient mechanism'''
+        from cellprofiler.gui.cpfigure import renumber_labels_for_display
+        import matplotlib.cm as cm
+        #
+        # [ Original labels ]    [ Final labels superimposed on image ]
+        #
+        # [ Gradient of image ]  [ Statistics ]
+        figure.set_subplots((2, 2))
+        ax = figure.subplot_imshow_labels(
+            0, 0, workspace.display_data.orig_labels,
+            title = self.objects_name.value)
+        #
+        # The composite: image + labels
+        #
+        output_labels = renumber_labels_for_display(
+                workspace.display_data.output_labels)
+        image = (stretch(workspace.display_data.image) * 255).astype(np.uint8)
+        image = np.dstack((image, image, image))
+        my_cm = cm.get_cmap(cpprefs.get_default_colormap())
+        my_cm.set_bad((0,0,0))
+        sm = cm.ScalarMappable(cmap=my_cm)
+        m_output_labels = np.ma.array(
+            output_labels, mask = output_labels == 0)
+        output_image = sm.to_rgba(m_output_labels, bytes=True)[:,:,:3]
+        image[output_labels > 0 ] = (
+            image[output_labels > 0] / 4 * 3 +
+            output_image[output_labels > 0,:] / 4)
+    
+        figure.subplot_imshow(1, 0, image,
+                              title = self.output_objects_name.value,
+                              sharexy = ax)
+        #
+        # The gradient + thresholding
+        #
+        simage = workspace.display_data.simage
+        image = np.dstack([simage] * 3)
+        local_threshold = workspace.display_data.local_threshold
+        if np.isscalar(local_threshold):
+            mask = simage < local_threshold
+        else:
+            mask = (~ np.isnan(local_threshold)) & (simage < local_threshold)
+        image[mask, 1:] = 0
+        smax = np.max(simage)
+        image[mask, 0] = (
+            (.375 * image[mask, 0] / 
+             workspace.display_data.global_threshold) + .25) * smax
+        ax_g =figure.subplot_imshow(
+            0, 1, image, 
+            title = "Gradient of %s" % self.output_objects_name.value,
+            sharexy = ax)
+        ax_g.plot(workspace.display_data.center_jj,
+                  workspace.display_data.center_ii,
+                  linestyle = "None",
+                  marker = ".",
+                  color="g")
+        #
+        # Statistics
+        #
+        row_captions = ["Threshold", "# merges", "Smoothing scale"]
+        in_count, out_count = [
+            len(np.unique(x))-1 for x in 
+            workspace.display_data.orig_labels,
+            workspace.display_data.output_labels]
+        stats = [["%.4f" % workspace.display_data.global_threshold],
+                 ["%d of %d" % (in_count - out_count, in_count)],
+                 ["%.1f" % workspace.display_data.sigma]]
+        figure.subplot_table(1, 1, stats, row_labels = row_captions)
 
     def filter_using_image(self, workspace, mask):
         '''Filter out connections using local intensity minima between objects
@@ -461,6 +560,72 @@ class ReassignObjectNumbers(cpm.CPModule):
             mif = self.minimum_intensity_fraction.value
             i = c_i[centroid_intensities * mif <= minima]
             j = c_j[centroid_intensities * mif <= minima]
+        elif self.where_algorithm == CA_GRADIENT:
+            #
+            # Guess a scale for gradient smoothing based on average object size
+            #
+            areas = np.bincount(labels.flatten())
+            if len(areas) == 1:
+                sigma = GRADIENT_SIGMA
+            else:
+                #
+                # radius = sqrt(area) / sqrt(pi)
+                # 
+                # For big, fat cells, we can afford to smooth the edges
+                # without filling in the centers. Small cells need almost
+                # no smoothing (Sobel looks at a 3x3 window which is almost
+                # like adding 1.5 to our sigma - alternative would be LoG or
+                # DoG). The value of 10 is a heuristic compromise.
+                #
+                sigma = np.median(np.sqrt(areas[1:].astype(float) / np.pi))/ 10
+            simage = sobel(scind.gaussian_filter(image, sigma))
+            local_threshold, global_threshold = \
+                self.get_threshold(simage, mask, workspace)
+                
+            insignificant_gradient = simage < local_threshold
+            slabels, _ = scind.label(insignificant_gradient)
+            #
+            # Sometimes the gradients aren't strong enough and there's no
+            # separation between interior and exterior. We eliminate any objects
+            # that contain more than 50% background pixels, assuming that any
+            # cells that connect to background are missing a strong edge gradient
+            #
+            areas = np.bincount(slabels.flatten())
+            background_counts = np.bincount(
+                slabels.flatten(), labels.flatten() == 0)
+            bmask = background_counts / areas > .5
+            slabels[bmask[slabels]] = 0
+            center_i, center_j = morph.centers_of_labels(labels)
+            # 
+            # Find the closest point in each object to the center that's 
+            # inside the insignificant gradient.
+            #
+            ii, jj = np.mgrid[0:labels.shape[0], 0:labels.shape[1]]
+            ii = ii[insignificant_gradient & (labels > 0)]
+            jj = jj[insignificant_gradient & (labels > 0)]
+            ll = labels[ii, jj]
+            dd = (ii - center_i[ll-1]) ** 2 + (jj - center_j[ll-1]) ** 2
+            unique_ll = np.unique(ll)
+            nearest = np.array(
+                scind.minimum_position(dd, ll, unique_ll), 
+                dtype=int).flatten()
+            center_labels = np.zeros(len(center_i), int)
+            center_ii, center_jj = ii[nearest], jj[nearest]
+            center_labels[unique_ll-1] = slabels[center_ii, center_jj]
+            ij_mask = ((center_labels[c_i-1] > 0) & (center_labels[c_j-1] > 0) &
+                       (center_labels[c_i-1] == center_labels[c_j-1]))
+            if self.show_window:
+                workspace.display_data.image = image
+                workspace.display_data.simage = simage
+                workspace.display_data.local_threshold = local_threshold
+                workspace.display_data.global_threshold = global_threshold
+                workspace.display_data.sigma = sigma
+                workspace.display_data.center_ii = center_ii
+                workspace.display_data.center_jj = center_jj
+            if np.all(~ ij_mask):
+                return labels
+            i = c_i[ij_mask]
+            j = c_j[ij_mask]
         else:
             i = c_i
             j = c_j
@@ -529,10 +694,18 @@ class ReassignObjectNumbers(cpm.CPModule):
             setting_values += [cps.NO, "RelabeledNucleiOutlines"]
             variable_revision_number = 2
             
-        if (not from_matlab) and variable_revision_number == 1:
+        if (not from_matlab) and variable_revision_number == 2:
             # Added per-parent unification
             setting_values += [UNIFY_DISTANCE, cps.NONE]
             variable_revision_number = 3
+            
+        if (not from_matlab) and variable_revision_number == 3:
+            # Added gradient method + threshold settings
+            #
+            n_old_settings = len(setting_values)
+            thresh_settings = self.settings()[n_old_settings:]
+            setting_values += [x.value_text for x in thresh_settings]
+            variable_revision_number = 4
                        
         return setting_values, variable_revision_number, from_matlab
     
@@ -584,6 +757,9 @@ class ReassignObjectNumbers(cpm.CPModule):
         elif object_name == self.objects_name.value and category == 'Children':
             return [ "%s_Count" % self.output_objects_name.value]
         return []
+    
+    def get_measurement_objects_name(self):
+        return self.objects_name.value
 
 def copy_labels(labels, segmented):
     '''Carry differences between orig_segmented and new_segmented into "labels"
