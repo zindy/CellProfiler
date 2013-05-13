@@ -276,50 +276,46 @@ class CalculateImageOverlap(cpm.CPModule):
         mask  = GT_mask & ID_mask
         object_name_GT = self.object_name_GT.value
         objects_GT = workspace.get_objects(object_name_GT)
-        iGT,jGT,lGT = objects_GT.ijv.transpose() 
         object_name_ID = self.object_name_ID.value
         objects_ID = workspace.get_objects(object_name_ID)
-        iID, jID, lID = objects_ID.ijv.transpose()
-        ID_obj = max(lID)
-        GT_obj  = max(lGT)
+        ID_obj = objects_ID.count
+        GT_obj  = objects_GT.count
         intersect_matrix = np.zeros((ID_obj, GT_obj))
-        GT_tot_area = []
-        all_intersect_area = []
         FN_area = np.zeros((ID_obj, GT_obj))
 
         xGT, yGT = np.shape(GT_pixels)
         xID, yID = np.shape(ID_pixels)
-        GT_pixels = np.zeros((xGT, yGT))
-        ID_pixels = np.zeros((xID, yID))
+        GT_pixels = np.zeros((xGT, yGT), bool)
+        ID_pixels = np.zeros((xID, yID), bool)
         total_pixels = xGT*yGT
-
-        for ii in range(0, GT_obj):
-            indices_ii = np.nonzero(lGT == ii)
-            indices_ii = indices_ii[0]
-            iGT_ii = iGT[indices_ii]
-            jGT_ii = jGT[indices_ii]
-            GT_set = set(zip(iGT_ii, jGT_ii))
-            for jj in range(0, ID_obj):
-                indices_jj = np.nonzero(lID==jj)
-                indices_jj = indices_jj[0]
-                iID_jj = iID[indices_jj]
-                jID_jj = jID[indices_jj]
-                ID_set = set(zip(iID_jj, jID_jj))
-                area_overlap = len(GT_set & ID_set)
-                all_intersect_area += [area_overlap]
-                intersect_matrix[jj,ii] = area_overlap
-                FN_area[jj,ii] = len(GT_set) - area_overlap
-            GT_pixels[iGT, jGT] = 1    
-            GT_tot_area += [len(GT_set)]
+        
+        intersect_matrix = np.zeros((ID_obj, GT_obj))
+        n_unmasked = np.sum(mask)
+        GT_areas = np.zeros(GT_obj)
+        all_intersecting_area = 0
+        GT_tot_area = 0
+        #
+        # Loop through all combinations of ground-truth vs id label planes
+        # and use coo_matrix to compile a score of co-occurrences
+        #
+        for glabels, gidxs in objects_GT.get_labels():
+            glabels = ID_img.crop_image_similarly(glabels)
+            GT_pixels[(glabels > 0) & mask] = True
+            for ilabels, iidxs in objects_ID.get_labels():
+                ilabels = ID_img.crop_image_similarly(ilabels)
+                coo = coo_matrix(
+                    (np.ones(n_unmasked), (ilabels[mask], glabels[mask])), 
+                    shape = (ID_obj+1, GT_obj+1))
+                coo = coo.toarray()[1:, 1:]
+                all_intersecting_area += np.sum(coo > 0)
+                intersect_matrix += coo
+                ID_pixels[(ilabels > 0) & mask] = True
+            this_gt_areas = np.bincount(glabels[mask])[1:]
+            GT_areas[:len(this_gt_areas)] += this_gt_areas
+            GT_tot_area += np.sum(this_gt_areas)
+        FN_area = GT_areas[np.newaxis, :] - intersect_matrix
 
         dom_ID = []
-
-        for i in range(0, ID_obj):
-            indices_jj = np.nonzero(lID==i)
-            indices_jj = indices_jj[0]
-            id_i = iID[indices_jj]
-            id_j = jID[indices_jj]
-            ID_pixels[id_i, id_j] = 1
 
         for i in intersect_matrix:  # loop through the GT objects first                                
             if max(i) == 0:
@@ -366,10 +362,6 @@ class CalculateImageOverlap(cpm.CPModule):
         TN = np.sum(TN)
         TP = np.sum(TP)
         FP = np.sum(FP)
-        GT_tot_area = np.sum(GT_tot_area)
-
-        all_intersecting_area = np.sum(all_intersect_area)
-
         
         accuracy = TP/all_intersecting_area
         recall  = TP/GT_tot_area
@@ -378,16 +370,6 @@ class CalculateImageOverlap(cpm.CPModule):
         false_positive_rate = FP/(FP+TN)
         false_negative_rate = FN/(FN+TP)
         
-        #
-        # Temporary - assume not ijv
-        #
-        #rand_index, adjusted_rand_index = self.compute_rand_index_ijv(
-        #    gt_ijv, objects_ijv, mask)
-        #
-        gt_labels = np.zeros(mask.shape, np.int64)
-        gt_labels[iGT, jGT] = lGT
-        test_labels = np.zeros(mask.shape, np.int64)
-        test_labels[iID, jID] = lID
         rand_index, adjusted_rand_index = self.compute_rand_index_ijv(
             objects_GT.ijv, objects_ID.ijv, mask)
         m = workspace.measurements
@@ -403,37 +385,44 @@ class CalculateImageOverlap(cpm.CPModule):
                                 rand_index)
         m.add_image_measurement(self.measurement_name(FTR_ADJUSTED_RAND_INDEX),
                                 adjusted_rand_index)
-        def subscripts(condition1, condition2):
-            x1,y1 = np.where(GT_pixels == condition1)
-            x2,y2 = np.where(ID_pixels == condition2)
-            mask = set(zip(x1,y1)) & set(zip(x2,y2))
-            return list(mask)
-
-        TP_mask = subscripts(1,1)
-        FN_mask = subscripts(1,0)
-        FP_mask = subscripts(0,1)
-        TN_mask = subscripts(0,0)
-
-        TP_pixels = np.zeros((xGT,yGT))
-        FN_pixels = np.zeros((xGT,yGT))
-        FP_pixels = np.zeros((xGT,yGT))
-        TN_pixels = np.zeros((xGT,yGT))
-
-        def maskimg(mask,img):
-            for ea in mask:
-                img[ea] = 1
-            return img
-
-        TP_pixels = maskimg(TP_mask, TP_pixels)
-        FN_pixels = maskimg(FN_mask, FN_pixels)
-        FP_pixels = maskimg(FP_mask, FP_pixels)
-        TN_pixels = maskimg(TN_mask, TN_pixels)
 
         if self.show_window:
+            #
+            # Add true positives as we loop through the labels
+            #
+            TP_pixels = np.zeros(GT_pixels.shape, bool)
+            #
+            # Assume that all GT pixels overlapped by identified pixels
+            # are misidentified.
+            #
+            MIS_pixels = GT_pixels & ID_pixels
+            #
+            # True negatives are pixels that are never in either the
+            # ground truth or identified.
+            #
+            TN_pixels = (~ GT_pixels) & (~ ID_pixels)
+            #
+            # Assume all identified are false positive until otherwise
+            # discovered
+            #
+            FP_pixels = mask & ID_pixels
+            #
+            # Assume all ground truth pixels remain unidentified
+            #
+            FN_pixels = mask & GT_pixels
+            for glabels, gidx in objects_GT.get_labels():
+                for ilabels, iidx in objects_ID.get_labels():
+                    p = (ilabels > 0) & (glabels > 0) & mask
+                    tp = glabels[p]-1 == dom_ID[ilabels[p]-1]
+                    TP_pixels[p] = TP_pixels[p] | tp
+                    FP_pixels[p] = False
+                    FN_pixels[p] = False
+                    MIS_pixels[p] = MIS_pixels[p] & ~ tp
             workspace.display_data.true_positives = TP_pixels
             workspace.display_data.true_negatives = TN_pixels
             workspace.display_data.false_positives = FP_pixels
             workspace.display_data.false_negatives = FN_pixels
+            workspace.display_data.missegmented = MIS_pixels
             workspace.display_data.statistics = [
                 (FTR_F_FACTOR, F_factor),
                 (FTR_PRECISION, precision),
@@ -685,18 +674,27 @@ class CalculateImageOverlap(cpm.CPModule):
     def display(self, workspace, figure):
         '''Display the image confusion matrix & statistics'''
         figure.set_subplots((3, 2))
-        for x, y, image, label in (
+        ax_data = [
             (0, 0, workspace.display_data.true_positives, "True positives"),
             (0, 1, workspace.display_data.false_positives, "False positives"),
             (1, 0, workspace.display_data.false_negatives, "False negatives"),
-            (1, 1, workspace.display_data.true_negatives, "True negatives")):
+            (1, 1, workspace.display_data.true_negatives, "True negatives")]
+        if self.obj_or_img == O_OBJ:
+            ax_data.append(
+                (2, 0, workspace.display_data.missegmented, "Segmentation errors"))
+            n_table_rows = 1
+            table_row = 1
+        else:
+            n_table_rows = 2
+            table_row = 0
+        for x, y, image, label in ax_data:
             figure.subplot_imshow_bw(x, y, image, title=label,
                                      sharexy = figure.subplot(0,0))
             
-        figure.subplot_table(2, 0, 
+        figure.subplot_table(2, table_row, 
                              workspace.display_data.statistics,
                              col_labels = ("Measurement", "Value"),
-                             n_rows = 2)
+                             n_rows = n_table_rows)
 
     def measurement_name(self, feature):
         if self.obj_or_img == O_IMG:

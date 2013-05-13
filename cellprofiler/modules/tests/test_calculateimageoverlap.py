@@ -155,13 +155,14 @@ CalculateImageOverlap:[module_num:1|svn_version:\'9000\'|variable_revision_numbe
                               crop_mask = d.get("crop_mask"))
             image_set.add(name, image)
         object_set = cpo.ObjectSet()
-        for name, d in ((GROUND_TRUTH_OBJ, ground_truth_obj),
-                        (ID_OBJ, id_obj)):
+        for name, segmentation, d in (
+            (GROUND_TRUTH_OBJ, ground_truth_obj, ground_truth),
+            (ID_OBJ, id_obj, id)):
             object = cpo.Objects()
-            if d.shape[1] == 3:
-                object.ijv = d
+            if segmentation.shape[1] == 3:
+                object.set_ijv(segmentation, shape = d['image'].shape)
             else:
-                object.segmented = d
+                object.segmented = segmentation
             object_set.add_objects(object, name)
         workspace = cpw.Workspace(pipeline, module, image_set,
                                   object_set, cpmeas.Measurements(),
@@ -479,9 +480,9 @@ CalculateImageOverlap:[module_num:1|svn_version:\'9000\'|variable_revision_numbe
             dict(image = np.zeros((20,10), bool)))
         
         assert isinstance(module, C.CalculateImageOverlap)
-        module.img_obj_found_in_GT.value = GROUND_TRUTH_OBJ
-        for obj_or_img, name in ((O_IMG, TEST_IMAGE_NAME),
-                                 (O_OBJ, GROUND_TRUTH_OBJ)):
+        module.object_name_GT.value = GROUND_TRUTH_OBJ
+        module.object_name_ID.value = ID_OBJ
+        for obj_or_img in O_IMG, O_OBJ:
             module.obj_or_img.value = obj_or_img
             columns = module.get_measurement_columns(workspace.pipeline)
             # All columns should be unique
@@ -490,7 +491,13 @@ CalculateImageOverlap:[module_num:1|svn_version:\'9000\'|variable_revision_numbe
             self.assertTrue(all([x[0] == cpmeas.IMAGE]))
             self.assertTrue(all([x[2] == cpmeas.COLTYPE_FLOAT]))
             for feature in C.FTR_ALL:
-                field = '_'.join((C.C_IMAGE_OVERLAP, feature, name))
+                if obj_or_img == O_OBJ:
+                    field = '_'.join(
+                        (C.C_IMAGE_OVERLAP, feature, GROUND_TRUTH_OBJ,
+                         ID_OBJ))
+                else:
+                    field = '_'.join(
+                        (C.C_IMAGE_OVERLAP, feature, TEST_IMAGE_NAME))
                 self.assertTrue(field in [x[1] for x in columns])
 
     def test_04_02_get_categories(self):
@@ -601,11 +608,11 @@ CalculateImageOverlap:[module_num:1|svn_version:\'9000\'|variable_revision_numbe
         module.run(workspace)
         measurements = workspace.measurements
         mname = '_'.join((C.C_IMAGE_OVERLAP, C.FTR_RAND_INDEX, 
-                          GROUND_TRUTH_OBJ_IMAGE_NAME))
+                          GROUND_TRUTH_OBJ, ID_OBJ))
         rand_index = measurements.get_current_image_measurement(mname)
         self.assertAlmostEqual(rand_index, expected_rand_index)
         mname = '_'.join((C.C_IMAGE_OVERLAP, C.FTR_ADJUSTED_RAND_INDEX,
-                          GROUND_TRUTH_OBJ_IMAGE_NAME))
+                          GROUND_TRUTH_OBJ, ID_OBJ))
         adjusted_rand_index = \
             measurements.get_current_image_measurement(mname)
         self.assertAlmostEqual(adjusted_rand_index, expected_adjusted_rand_index)
