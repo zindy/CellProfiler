@@ -38,6 +38,11 @@ IMAGE_NAME = 'image'
 OUTLINE_NAME = 'outlines'
 
 class TestReassignObjectNumbers(unittest.TestCase):
+    def test_01_0000_variable_revision(self):
+        self.assertEqual(R.ReassignObjectNumbers.variable_revision_number, 4,
+                         "Please write a test that loads variable_revision_number %d" %
+                         R.ReassignObjectNumbers.variable_revision_number)
+        
     def test_01_000_load_split(self):
         data = r"""CellProfiler Pipeline: http://www.cellprofiler.org
 Version:1
@@ -163,6 +168,67 @@ UnifyObjects:[module_num:1|svn_version:\'8913\'|variable_revision_number:1|show_
         self.assertEqual(module.where_algorithm, R.CA_CLOSEST_POINT)
         self.assertTrue(module.wants_image)
         self.assertEqual(module.image_name, "OrigRGB")
+        
+    def test_01_04_load_v4(self):
+        data = r"""CellProfiler Pipeline: http://www.cellprofiler.org
+Version:3
+DateRevision:20130510184437
+ModuleCount:1
+HasImagePlaneDetails:False
+
+ReassignObjectNumbers:[module_num:1|svn_version:\'Unknown\'|variable_revision_number:4|show_window:False|notes:\x5B\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True]
+    Select the input objects:InputObjects
+    Name the new objects:OutputObjects
+    Operation to perform:Unify
+    Maximum distance within which to unify objects:3
+    Unify using a grayscale image?:Yes
+    Select the grayscale image to guide unification:Brightfield
+    Minimum intensity fraction:0.95
+    Method to find object intensity:Gradient
+    Retain outlines of the relabeled objects?:Yes
+    Name the outlines:MyOutlines
+    Unification to perform:Distance
+    Select the parent object:GFP
+    Threshold setting version:1
+    Threshold strategy:Global
+    Thresholding method:Kapur
+    Select the smoothing method for thresholding:Manual
+    Threshold smoothing scale:1.0
+    Threshold correction factor:1
+    Lower and upper bounds on threshold:0.000000,1.000000
+    Approximate fraction of image covered by objects?:0.01
+    Manual threshold:0.0
+    Select the measurement to threshold with:None
+    Select binary image:None
+    Select the input objects:InputObjects
+    Two-class or three-class thresholding?:Two classes
+    Minimize the weighted variance or the entropy?:Weighted variance
+    Assign pixels in the middle intensity class to the foreground or the background?:Foreground
+    Method to calculate adaptive window size:Image size
+    Size of adaptive window:10
+
+"""
+        pipeline = cpp.Pipeline()
+        def callback(caller,event):
+            self.assertFalse(isinstance(event, cpp.LoadExceptionEvent))
+        pipeline.add_listener(callback)
+        pipeline.load(StringIO(data))
+        self.assertEqual(len(pipeline.modules()), 1)
+        m = pipeline.modules()[0]
+        self.assertTrue(isinstance(m, R.ReassignObjectNumbers))
+        self.assertEqual(m.objects_name, "InputObjects")
+        self.assertEqual(m.output_objects_name, "OutputObjects")
+        self.assertEqual(m.relabel_option, R.OPTION_UNIFY)
+        self.assertEqual(m.distance_threshold, 3)
+        self.assertTrue(m.wants_image)
+        self.assertEqual(m.image_name, "Brightfield")
+        self.assertAlmostEqual(m.minimum_intensity_fraction, .95)
+        self.assertEqual(m.where_algorithm, R.CA_GRADIENT)
+        self.assertTrue(m.wants_outlines)
+        self.assertEqual(m.unify_option, R.UNIFY_DISTANCE)
+        self.assertEqual(m.parent_object, "GFP")
+        self.assertEqual(m.threshold_scope, I.TS_GLOBAL)
+        self.assertEqual(m.adaptive_window_size, 10)
 
     def rruunn(self, input_labels, relabel_option, 
                unify_option = R.UNIFY_DISTANCE,

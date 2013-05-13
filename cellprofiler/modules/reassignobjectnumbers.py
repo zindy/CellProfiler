@@ -71,6 +71,9 @@ CA_GRADIENT = "Gradient"
 
 GRADIENT_SIGMA = 2.0
 
+OFFSET_THRESHOLD_SETTINGS_V4 = 12
+OFFSET_THRESHOLD_SETTINGS = 12
+
 class ReassignObjectNumbers(Identify):
     module_name = "ReassignObjectNumbers"
     category = "Object Processing"
@@ -216,11 +219,6 @@ class ReassignObjectNumbers(Identify):
             Enter a name that will allow the outlines to be selected later in the pipeline.""")
         
         self.create_threshold_settings(TM_METHODS)
-        #
-        # Use the original objects as the masking objects if per-object
-        # thresholding is done in CA_GRADIENT
-        #
-        self.masking_objects = self.objects_name
 
     def get_parent_choices(self,pipeline):
         columns = pipeline.get_measurement_columns()
@@ -702,11 +700,14 @@ class ReassignObjectNumbers(Identify):
         if (not from_matlab) and variable_revision_number == 3:
             # Added gradient method + threshold settings
             #
-            n_old_settings = len(setting_values)
-            thresh_settings = self.settings()[n_old_settings:]
-            setting_values += [x.value_text for x in thresh_settings]
+            thresh_settings = self.get_threshold_settings()
+            setting_values = setting_values + [
+                x.value_text for x in thresh_settings]
             variable_revision_number = 4
-                       
+        
+        setting_values = setting_values[:OFFSET_THRESHOLD_SETTINGS] +\
+            self.upgrade_threshold_settings(
+                setting_values[OFFSET_THRESHOLD_SETTINGS:])
         return setting_values, variable_revision_number, from_matlab
     
     def get_image(self, workspace):
@@ -759,7 +760,7 @@ class ReassignObjectNumbers(Identify):
         return []
     
     def get_measurement_objects_name(self):
-        return self.objects_name.value
+        return self.output_objects_name.value
 
 def copy_labels(labels, segmented):
     '''Carry differences between orig_segmented and new_segmented into "labels"
