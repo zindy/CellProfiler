@@ -334,6 +334,10 @@ class HDF5Dict(object):
                                                                                        compression='gzip', shuffle=True, chunks=(self.chunksize,), maxshape=(None,))
 
             if np.isscalar(val):
+                if isinstance(val, basestring):
+                    # Somehow gets around this bug:
+                    # https://code.google.com/p/h5py/issues/detail?id=217
+                    val = np.array(val, dtype="O")
                 dataset[dest] = val
             else:
                 dataset[dest] = np.asanyarray(val).ravel()
