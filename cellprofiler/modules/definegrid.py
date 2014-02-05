@@ -398,6 +398,8 @@ class DefineGrid(cpm.CPModule):
         workspace.display_data.image_set_number = workspace.measurements.image_set_number
 
         if self.wants_image:
+            import matplotlib.figure
+            import matplotlib.backends.backend_agg
             import matplotlib.transforms
             from cellprofiler.gui.cpfigure_tools import figure_to_image
             figure = matplotlib.figure.Figure()
