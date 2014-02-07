@@ -138,11 +138,6 @@ from cellprofiler.utilities.run_loop import enter_run_loop, stop_run_loop
 import numpy as np
 np.seterr(all='ignore')
 
-
-# to guarantee closing of measurements, we store all of them in a WeakSet, and
-# close them on exit.
-all_measurements = WeakSet()
-
 NOTIFY_ADDR = "inproc://notify"
 NOTIFY_STOP = "STOP"
 
@@ -152,6 +147,11 @@ stdin_monitor_cv = threading.Condition(stdin_monitor_lock)
 stdin_monitor_started = False
 
 def main():
+    try:
+        from ilastik.core.jobMachine import GLOBAL_WM
+        GLOBAL_WM.setThreadCount(1)
+    except:
+        logger.debug("Ilastik not loaded, thread count not set")
     #
     # For Windows build with Ilastik, look for site-packages
     # in order to find Ilastik sources.
@@ -213,6 +213,7 @@ def main():
         J.kill_vm()
     except:
         logger.warn("Failed to stop the Java VM")
+    os._exit(0)
             
         
 class AnalysisWorker(object):
@@ -355,7 +356,6 @@ class AnalysisWorker(object):
                 logger.debug("Has initial measurements")
             # Make a copy of the measurements for writing during this job
             current_measurements = cpmeas.Measurements(copy=current_measurements)
-            all_measurements.add(current_measurements)
             job_measurements.append(current_measurements)
         
             successful_image_set_numbers = []
@@ -425,6 +425,7 @@ class AnalysisWorker(object):
                                 self.current_analysis_id,
                                 image_set_number=image_set_number,
                                 shared_dicts = dicts)
+                            del ws
                         else:
                             req = ImageSetSuccess(
                                 self.current_analysis_id,
@@ -464,8 +465,10 @@ class AnalysisWorker(object):
                     current_pipeline.post_group(
                         workspace, 
                         current_measurements.get_grouping_keys())
+                    del workspace
         
             # send measurements back to server
+            current_measurements.clear_backing_store()
             req = MeasurementsReport(self.current_analysis_id,
                                      buf=current_measurements.file_contents(),
                                      image_set_numbers=image_set_numbers)
@@ -481,6 +484,7 @@ class AnalysisWorker(object):
                 raise CancelledException("Cancelling after user-requested stop")
         finally:
             # Clean up any measurements owned by us
+            gc.collect()
             for m in job_measurements:
                 m.close()
         
@@ -719,11 +723,6 @@ def exit_on_stdin_close():
         notify_pub_socket.close()
         # hard exit after 10 seconds unless app exits
         time.sleep(10)
-        for m in all_measurements:
-            try:
-                m.close()
-            except:
-                pass
         os._exit(0)
 
 def start_daemon_thread(target=None, args=(), name=None):

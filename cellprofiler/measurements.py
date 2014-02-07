@@ -1576,6 +1576,10 @@ class Measurements(object):
         group = self.hdf5_dict.hdf5_file.require_group("/Temp/Objects")
         objects.hibernate(group.require_group(name))
         
+    def clear_backing_store(self):
+        '''Remove the temporary images and objects stored in hdf5'''
+        del self.hdf5_dict.hdf5_file['/Temp']
+        
     def set_channel_descriptors(self, channel_descriptors):
         '''Write the names and data types of the channel descriptors
         

@@ -2601,8 +2601,7 @@ u"\u2022 Groups: Confirm that that the expected number of images per group are p
         
         self.close_debug_measurements()
         self.__debug_measurements = cellprofiler.measurements.Measurements(
-            copy = self.__workspace.measurements,
-            mode="memory")
+            copy = self.__workspace.measurements)
         self.__debug_object_set = cpo.ObjectSet(can_overwrite=True)
         self.__frame.enable_debug_commands()
         assert isinstance(self.__pipeline, cpp.Pipeline)
