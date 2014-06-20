@@ -57,11 +57,9 @@ def execute_macro(macro_text):
     macro_text - the macro program to be run
     '''
     interp = J.make_instance("ij/macro/Interpreter","()V");
-    J.execute_runnable_in_main_thread(J.run_script(
-        """new java.lang.Runnable() {
-        run: function() {
-            interp.run(macro_text);
-        }}""", dict(interp=interp, macro_text=macro_text)), synchronous=True)
+    J.execute_runnable_in_main_thread(J.make_runnable_script(
+        "interp.run(macro_text);",
+        dict(interp=interp, macro_text=macro_text)), synchronous=True)
     
 def get_user_loader():
     '''The class loader used to load user plugins'''

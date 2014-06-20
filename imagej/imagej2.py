@@ -499,11 +499,9 @@ def get_display_service(context):
         def setActiveDisplay(self, display):
             '''Make this the active display'''
             # Note: has to be run in GUI thread on mac
-            r = J.run_script(
-                """new java.lang.Runnable() {
-                    run:function() { displayService.setActiveDisplay(display); }
-                }
-                """, dict(displayService=self.o, display=display.o))
+            r = J.make_runnable_script(
+                "displayService.setActiveDisplay(display);",
+                dict(displayService=self.o, display=display.o))
             J.execute_runnable_in_main_thread(r, True)
         getDisplays = J.make_method(
             "getDisplays", 
@@ -561,11 +559,9 @@ def wrap_display(display):
             
             This is run in the UI thread with synchronization.
             '''
-            r = J.run_script(
-                """new java.lang.Runnable() {
-                run: function() { display.close(); }
-                };
-                """, dict(display=self.o))
+            r = J.make_runnable_script(
+                "display.close();",
+                dict(display=self.o))
             J.execute_runnable_in_main_thread(r, True)
         #
         # ImageDisplay methods
@@ -673,10 +669,9 @@ def select_overlay(display, overlay, select=True):
     '''
     for view in J.get_collection_wrapper(display, fn_wrapper = wrap_data_view):
         if J.call(overlay, "equals", "(Ljava/lang/Object;)Z", view.getData()):
-            J.execute_runnable_in_main_thread(J.run_script(
-                """new java.lang.Runnable() {
-                    run: function() { view.setSelected(select);}
-                   }""", dict(view = view.o, select=select)))
+            J.execute_runnable_in_main_thread(J.make_runnable_script(
+                "view.setSelected(select);",
+                 dict(view = view.o, select=select)))
             break
     else:
         logger.info("Failed to select overlay")
@@ -1141,30 +1136,18 @@ def make_invoke_method(method, returns_value=False, doc = None,
         fn_post_process = lambda x: x
     if returns_value:
         def fn(self, *args):
-            script = """
-            new java.util.concurrent.Callable() {
-                call: function() {
-                    return o.%s(%s);
-                }
-            };
-            """ % (method, ",".join(["arg%d" % i for i in range(len(args))]))
+            script = "o.%s(%s);" % (method, ",".join(["arg%d" % i for i in range(len(args))]))
             d = dict([("arg%d" % i, arg) for i, arg in enumerate(args)])
             d["o"] = self.o
-            future = J.make_future_task(J.run_script(script, d))
+            future = J.make_future_task(J.make_callable_script(script, d))
             J.execute_future_in_main_thread(future)
             return fn_post_process(future.get())
     else:
         def fn(self, *args):
-            script = """
-            new java.lang.Runnable() {
-                run: function() {
-                    o.%s(%s);
-                }
-            };
-            """ % (method, ",".join(["arg%d" % i for i in range(len(args))]))
+            script = "o.%s(%s);" % (method, ",".join(["arg%d" % i for i in range(len(args))]))
             d = dict([("arg%d" % i, arg) for i, arg in enumerate(args)])
             d["o"] = self.o
-            future = J.make_future_task(J.run_script(script, d))
+            future = J.make_future_task(J.make_runnable_script(script, d))
             J.execute_future_in_main_thread(future)
             return future.get()
     if doc is None:

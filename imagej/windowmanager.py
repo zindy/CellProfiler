@@ -62,10 +62,9 @@ def set_current_image(imagej_obj):
     '''Set the currently active window'''
     imagej_obj.show()
     image_window = imagej_obj.getWindow()
-    J.execute_runnable_in_main_thread(J.run_script(
-        """new java.lang.Runnable() {
-        run:function() { Packages.ij.WindowManager.setCurrentWindow(w); }}
-        """, dict(w=image_window)), synchronous=True)
+    J.execute_runnable_in_main_thread(J.make_runnable_script(
+        "Packages.ij.WindowManager.setCurrentWindow(w);",
+        dict(w=image_window)), synchronous=True)
 
 def close_all_windows():
     '''Close all ImageJ windows

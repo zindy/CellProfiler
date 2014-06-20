@@ -393,7 +393,7 @@ def unwrap_javascript(o):
             return call(o, method, signature)
     return o
     
-def run_script(script, bindings_in = {}, bindings_out = {}, 
+def run_script(script, bindings_in = None, bindings_out = None, 
                class_loader = None):
     '''Run a scripting language script
     
@@ -411,43 +411,58 @@ def run_script(script, bindings_in = {}, bindings_out = {},
     
     Returns the object that is the result of the evaluation.
     '''
-    context = static_call("org/mozilla/javascript/Context", "enter",
-                          "()Lorg/mozilla/javascript/Context;")
-    try :
-        if class_loader is not None:
-            call(context, "setApplicationClassLoader",
-                 "(Ljava/lang/ClassLoader;)V",
-                 class_loader)
-        scope = make_instance("org/mozilla/javascript/ImporterTopLevel",
-                              "(Lorg/mozilla/javascript/Context;)V",
-                              context)
-        for k, v in bindings_in.iteritems():
-            call(scope, "put", 
-                 "(Ljava/lang/String;Lorg/mozilla/javascript/Scriptable;"
-                 "Ljava/lang/Object;)V", k, scope, v)
-        result = call(context, "evaluateString",
-             "(Lorg/mozilla/javascript/Scriptable;"
-             "Ljava/lang/String;"
-             "Ljava/lang/String;"
-             "I"
-             "Ljava/lang/Object;)"
-             "Ljava/lang/Object;", 
-             scope, script, "<java-python-bridge>", 0, None)
-        result = unwrap_javascript(result)
-        for k in list(bindings_out):
-            bindings_out[k] = unwrap_javascript(call(
-                scope, "get",
-                "(Ljava/lang/String;"
-                "Lorg/mozilla/javascript/Scriptable;)"
-                "Ljava/lang/Object;", k, scope))
-    except JavaException, e:
-        if is_instance_of(e.throwable, "org/mozilla/javascript/WrappedException"):
-            raise JavaException(call(e.throwable, "unwrap", "()Ljava/lang/Object;"))
-        raise
-    finally:
-        static_call("org/mozilla/javascript/Context", "exit", "()V")
+    jbindings_in = None if bindings_in == None else make_map(**bindings_in).o
+    if bindings_out != None:
+        bindings_map = make_map(**bindings_out)
+    result = static_call(
+        "org/cellprofiler/utils/ScriptContextAction",
+        "run",
+        "(Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Ljava/lang/ClassLoader;)Ljava/lang/Object;",
+        script, jbindings_in,
+        None if bindings_out == None else bindings_map.o, class_loader)
+    result = unwrap_javascript(result)
+    if bindings_out != None:
+        for k in bindings_out:
+            bindings_out[k] = unwrap_javascript(bindings_map[k])
     return result
 
+def make_runnable_script(script, bindings_in=None, class_loader = None):
+    '''Create a java.lang.Runnable that runs a javascript script
+    
+    script - the script to run
+    bindings_in - a dictionary of variables to define and their values
+    class_loader - class loader for scripting context
+    
+    Returns a java.lang.Runnable that can be run using its run method.
+    '''
+    jbindings_in = None if bindings_in == None else make_map(**bindings_in).o
+    result = static_call(
+        "org/cellprofiler/utils/ScriptContextAction",
+        "makeRunnable",
+        "(Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Ljava/lang/ClassLoader;)Ljava/lang/Runnable;",
+        script, jbindings_in, None, class_loader)
+    result = unwrap_javascript(result)
+    return result
+
+def make_callable_script(script, bindings_in=None, class_loader = None):
+    '''Create a java.util.concurrent.Callable that runs a javascript script
+    
+    script - the script to run
+    bindings_in - a dictionary of variables to define and their values
+    class_loader - class loader for scripting context
+    
+    Returns a java.util.concurrent.Callable that can be run using its call
+    method, returning the result of evaluating the script.
+    '''
+    jbindings_in = None if bindings_in == None else make_map(**bindings_in).o
+    result = static_call(
+        "org/cellprofiler/utils/ScriptContextAction",
+        "makeCallable",
+        "(Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Ljava/lang/ClassLoader;)Ljava/util/concurrent/Callable;",
+        script, jbindings_in, None, class_loader)
+    result = unwrap_javascript(result)
+    return result
+    
 def get_future_wrapper(o, fn_post_process=None):
     '''Wrap a java.util.concurrent.Future as a class
     
@@ -632,16 +647,12 @@ def print_all_stack_traces():
             print to_string(stake)
             
 CLOSE_ALL_WINDOWS = """
-        new java.lang.Runnable() { 
-            run: function() {
-                var all_frames = java.awt.Frame.getFrames();
-                if (all_frames) {
-                    for (idx in all_frames) {
-                        all_frames[idx].dispose();
-                    }
-                }
-            }
-        };"""
+    var all_frames = java.awt.Frame.getFrames();
+    if (all_frames) {
+        for (idx in all_frames) {
+            all_frames[idx].dispose();
+        }
+    };"""
 
 __awt_is_active = False
 def activate_awt():
@@ -649,19 +660,15 @@ def activate_awt():
     global __awt_is_active
     if not __awt_is_active:
         logger.debug("Activating AWT")
-        execute_runnable_in_main_thread(run_script(
-            """new java.lang.Runnable() {
-                   run: function() {
-                       java.awt.Color.BLACK.toString();
-                   }
-               };"""), True)
+        execute_runnable_in_main_thread(
+            make_runnable_script("java.awt.Color.BLACK.toString();"), True)
         __awt_is_active = True
         logger.debug("AWT activated")
         
 def deactivate_awt():
     global __awt_is_active
     if __awt_is_active:
-        r = run_script(CLOSE_ALL_WINDOWS)
+        r = make_runnable_script(CLOSE_ALL_WINDOWS)
         execute_runnable_in_main_thread(r, True)
         __awt_is_active = False
 #

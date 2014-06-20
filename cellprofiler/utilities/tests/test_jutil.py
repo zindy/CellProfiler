@@ -302,6 +302,17 @@ class TestJutil(unittest.TestCase):
         J.run_script("var result = 2+2;", bindings_out=outputs)
         self.assertEqual(outputs["result"], 4)
         
+    def test_05_04_make_runnable_script(self):
+        result = J.make_list();
+        r = J.make_runnable_script("result.add(a+b);", dict(a=2, b=2, result=result))
+        J.call(r, "run", "()V");
+        self.assertEqual(J.unwrap_javascript(result[0]), 4);
+        
+    def test_05_05_make_callable_script(self):
+        c = J.make_callable_script("a+b;", dict(a=2, b=2))
+        result = J.unwrap_javascript(J.call(c, "call", "()Ljava/lang/Object;"))
+        self.assertEqual(result, 4)
+        
     def test_06_01_execute_asynch_main(self):
         J.execute_runnable_in_main_thread(J.run_script(
             "new java.lang.Runnable() { run:function() {}};"))
