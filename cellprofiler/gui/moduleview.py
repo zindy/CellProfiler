@@ -642,20 +642,39 @@ class ModuleView:
         self.notes_panel.Bind(wx.EVT_TEXT, on_notes_changed,
                                self.module_notes_control)
         
-    def make_binary_control(self,v,control_name, control):
+    def make_binary_control(self, v, control_name, control):
         """Make a checkbox control for a Binary setting"""
+        assert isinstance(v, cps.Binary)
+        yes_name, no_name = [button_control_name(v, idx) 
+                             for idx in wx.YES, wx.NO]
         if not control:
-            control = wx.RadioBox(
-                self.__module_panel, 
-                choices = [cps.YES, cps.NO],
-                name=control_name)
-            def callback(event, setting=v, control=control):
-                self.__on_radiobox_change(event, setting, control)
+            control = wx.Panel(self.__module_panel, name = control_name)
+            groupbox = wx.StaticBox(control)
+            sizer = wx.StaticBoxSizer(groupbox, wx.HORIZONTAL)
+            control.SetSizer(sizer)
+            yes = wx.RadioButton(control, label=cps.YES, style=wx.RB_GROUP, 
+                                 name=yes_name)
+            sizer.Add(yes, 0, wx.EXPAND | wx.ALL, 2)
+            sizer.AddSpacer(5)
+            no = wx.RadioButton(control, label=cps.NO, name=no_name)
+            sizer.Add(no, 0, wx.EXPAND | wx.ALL, 2)
+            def yes_callback(event, setting=v, control=control, value=cps.YES):
+                self.__on_radiobutton_change(event, setting, control, value)
+            def no_callback(event, setting=v, control=control, value=cps.NO):
+                self.__on_radiobutton_change(event, setting, control, value)
                 
-            control.Bind(wx.EVT_RADIOBOX, callback)
-        current_selection = control.GetStringSelection()
-        if current_selection != v.value_text:
-            control.SetStringSelection(v.value_text)
+            yes.Bind(wx.EVT_RADIOBUTTON, yes_callback)
+            no.Bind(wx.EVT_RADIOBUTTON, no_callback)
+            for window in (control, yes, no):
+                window.BackgroundStyle = wx.BG_STYLE_COLOUR
+                window.BackgroundColour = cpprefs.get_background_color()
+        else:
+            yes, no = [control.FindWindowByName(name) 
+                       for name in yes_name, no_name]
+        
+        if (yes.Value and not v.value) or (no.Value and v.value):
+            yes.SetValue(v.value)
+            no.SetValue(not v.value)
         return control
 
     def make_name_subscriber_control(self, v, choices, control_name, control):
@@ -1901,6 +1920,11 @@ class ModuleView:
             return
         self.on_value_change(
             setting, control, control.GetStringSelection(), event)
+    
+    def __on_radiobutton_change(self, event, setting, control, value):
+        if not self.__handle_change:
+            return
+        self.on_value_change(setting, control, value, event)
     
     def __on_combobox_change(self,event,setting,control):
         if not self.__handle_change:

@@ -158,7 +158,7 @@ class PipelineListView(object):
         outputs_sizer.Add(self.outputs_panel, 1, wx.EXPAND)
         self.outputs_panel.Sizer = wx.BoxSizer()
         self.outputs_panel.BackgroundColour = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
-        self.outputs_panel.BackgroundStyle = wx.SOLID
+        self.outputs_panel.BackgroundStyle = wx.BG_STYLE_COLOUR
         self.outputs_button = wx.Button(self.outputs_panel, 
                                         label = "View output settings",
                                         style = wx.BU_EXACTFIT)
@@ -591,7 +591,12 @@ class PipelineListView(object):
             return
         
         if self.list_ctrl.active_item is None:
-            self.__frame.PopupMenu(self.__frame.menu_edit_add_module)
+            menu = wx.Menu()
+            self.__controller.populate_edit_menu(menu)
+            try:
+                self.__frame.PopupMenu(menu)
+            finally:
+                menu.Destroy()
         else:
             menu = wx.Menu()
             sub_menu = wx.Menu()
@@ -1264,6 +1269,7 @@ class PipelineListCtrl(wx.PyScrolledWindow):
         self.running_item = None
         self.pressed_row = None
         self.pressed_column = None
+        self.SetBestSize(self.DoGetBestSize())
         self.Refresh(eraseBackground=False)
         
     def DeleteItem(self, index):
@@ -1279,6 +1285,7 @@ class PipelineListCtrl(wx.PyScrolledWindow):
             self.anchor -= 1
         if self.running_item > index:
             self.running_item -= 1
+        self.SetBestSize(self.DoGetBestSize())
         self.AdjustScrollbars()
         self.Refresh(eraseBackground=False)
         
@@ -1296,6 +1303,7 @@ class PipelineListCtrl(wx.PyScrolledWindow):
             self.anchor += 1
         if self.running_item >= index:
             self.running_item += 1
+        self.SetBestSize(self.DoGetBestSize())
         self.AdjustScrollbars()
         self.Refresh(eraseBackground=False)
     

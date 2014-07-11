@@ -146,7 +146,7 @@ class CPFrame(wx.Frame):
         # Crappy splitters leave crud on the screen because they want custom
         # background painting but fail to do it. Here, we have a fight with
         # them and beat them.
-        self.__splitter.BackgroundStyle = 0
+        self.__splitter.BackgroundStyle = wx.BG_STYLE_COLOUR
 
         self.__right_win = wx.Panel(self.__splitter, style=wx.BORDER_NONE)
         self.__right_win.BackgroundColour = background_color
@@ -187,8 +187,6 @@ class CPFrame(wx.Frame):
         self.__path_module_imageset_panel = wx.Panel(self.__right_win)
         self.__right_win.Sizer.Add(self.__path_module_imageset_panel, 1,
                                    wx.EXPAND | wx.ALL)
-        self.__path_module_imageset_panel.Bind(
-            wx.EVT_SIZE, self.__on_path_module_imageset_panel_size)
         
         ########################################################################
         #
@@ -447,13 +445,6 @@ class CPFrame(wx.Frame):
         sash.SetDefaultSize((width, event.GetDragRect().height))
         self.layout_pmi_panel()
         sash.Layout()
-
-    def __on_path_module_imageset_panel_size(self, event):
-        self.layout_pmi_panel()
-        if self.__path_list_sash.IsShown():
-            self.__path_list_sash.Layout()
-        if self.__imageset_sash.IsShown():
-            self.__imageset_sash.Layout()
 
     def layout_pmi_panel(self):
         '''Run the sash layout algorithm on the path/module/imageset panel'''
