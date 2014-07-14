@@ -40,35 +40,32 @@ class CellProfilerApp(wx.App):
         # The wx.StandardPaths aren't available until this is set.
         self.SetAppName('CellProfiler2.0')
         
-        wx.InitAllImageHandlers()
-
-        if self.show_splashbox:
-            # If the splash image has alpha, it shows up transparently on
-            # windows, so we blend it into a white background.
-            splashbitmap = wx.EmptyBitmapRGBA(CellProfilerSplash.GetWidth(), CellProfilerSplash.GetHeight(), 255, 255, 255, 255)
-            dc = wx.MemoryDC()
-            dc.SelectObject(splashbitmap)
-            dc.DrawBitmap(wx.BitmapFromImage(CellProfilerSplash), 0, 0)
-            dc.SelectObject(wx.NullBitmap)
-            dc.Destroy() # necessary to avoid a crash in splashscreen
-            self.splash = wx.SplashScreen(
-                splashbitmap, 
-                wx.SPLASH_CENTRE_ON_SCREEN | wx.SPLASH_NO_TIMEOUT, 
-                2000, None, -1)
-            self.splash_timer = wx.Timer()
-            self.splash_timer.Bind(wx.EVT_TIMER, self.destroy_splash_screen)
-            self.splash_timer.Start(milliseconds = 2000, oneShot=True)
-        else:
-            self.splash = None
-
-        if self.check_for_new_version:
-            self.new_version_check()
-
+        # If the splash image has alpha, it shows up transparently on
+        # windows, so we blend it into a white background.
+        splashbitmap = wx.EmptyBitmapRGBA(CellProfilerSplash.GetWidth(), CellProfilerSplash.GetHeight(), 255, 255, 255, 255)
+        dc = wx.MemoryDC()
+        dc.SelectObject(splashbitmap)
+        dc.DrawBitmap(wx.BitmapFromImage(CellProfilerSplash), 0, 0)
+        dc.SelectObject(wx.NullBitmap)
+        dc.Destroy() # necessary to avoid a crash in splashscreen
+        self.splash = wx.SplashScreen(
+            splashbitmap, 
+            wx.SPLASH_CENTRE_ON_SCREEN | wx.SPLASH_NO_TIMEOUT, 
+            2000, None, -1)
+        self.SetTopWindow(self.splash)
         import bioformats
         from cellprofiler.utilities.jutil import activate_awt
         activate_awt()
+        wx.CallAfter(self.continue_init)
+        return 1
+    
+    def continue_init(self):
+        if self.check_for_new_version:
+            self.new_version_check()
+
         from cellprofiler.gui.cpframe import CPFrame
         self.frame = CPFrame(None, -1, "Cell Profiler")
+        self.SetTopWindow(self.frame)
         self.destroy_splash_screen()
         self.frame.start(self.workspace_path, self.pipeline_path)
         if self.abort_initialization:
@@ -85,7 +82,6 @@ class CellProfilerApp(wx.App):
         # replace default hook with error dialog
         self.orig_excepthook = sys.excepthook
         sys.excepthook = show_errordialog
-        self.SetTopWindow(self.frame)
         self.frame.Show()
         if self.frame.startup_blurb_frame.IsShownOnScreen():
             self.frame.startup_blurb_frame.Raise()

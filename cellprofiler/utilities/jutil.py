@@ -234,6 +234,7 @@ def start_vm(args, run_headless = False):
         return
     start_event = threading.Event()
     logger.debug("Args = %s" % ("\n".join(args)))
+    from cellprofiler.preferences import get_awt_headless
     
     def start_thread(args=args, run_headless=run_headless):
         global __i_am_the_main_thread
@@ -251,8 +252,6 @@ def start_vm(args, run_headless = False):
                 ("-agentlib:jdwp=transport=dt_socket,address=127.0.0.1:%s"
                  ",server=y,suspend=n") % os.environ["CP_JDWP_PORT"])
 
-        if sys.platform == 'Darwin' and not get_awt_headless():
-            javabridge.mac_run_loop_init()
         logger.debug("Creating JVM object")
         javabridge.set_thread_local("is_main_thread", True)
         vm = javabridge.get_vm()
@@ -543,13 +542,26 @@ def mac_get_future_value(future):
             time.sleep(.1)
         return future.raw_get()
     logger.debug("Polling for future done using Mac native event loop")
-    taken = static_call(RQCLS, "offer", "(Ljava/lang/Runnable;)Z", future.o)
-    while (not taken) or not future.isDone():
-        if not taken:
-            taken = static_call(RQCLS, "offer", "(Ljava/lang/Runnable;)Z", future.o)
+    import wx
+    event_loop = wx.GUIEventLoop()
+    last_event_loop = wx.EventLoopBase.GetActive()
+    
+    def take(this_fn, next_fn, future=future):
+        if static_call(RQCLS, "offer", "(Ljava/lang/Runnable;)Z", future.o):
+            wx.CallAfter(next_fn)
+        else:
+            wx.CallLater(250, this_fn)
+    
+    def poll_done(this_fn, future=future, event_loop=event_loop):
+        if future.isDone():
+            event_loop.Exit()
+        else:
+            wx.CallLater(250, lambda : this_fn(this_fn))
             
-        logger.debug("Future is not done")
-        javabridge.mac_poll_run_loop(.25)
+    take_fn = lambda : take(take, lambda : poll_done(poll_done))
+    activator = wx.EventLoopActivator(event_loop)
+    wx.CallAfter(take_fn)
+    event_loop.Run()
         
     logger.debug("Fetching future value")
     return future.raw_get()

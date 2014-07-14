@@ -28,6 +28,7 @@ import matplotlib.colorbar
 import matplotlib.backends.backend_wxagg
 from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
+from matplotlib.backends.backend_wx import StatusBarWx
 from cellprofiler.preferences import update_cpfigure_position, get_next_cpfigure_position, reset_cpfigure_position
 from scipy.sparse import coo_matrix
 from scipy.ndimage import distance_transform_edt
@@ -301,13 +302,19 @@ class CPFigureFrame(wx.Frame):
             matplotlib.rcdefaults()
         self.figure = figure = matplotlib.figure.Figure()
         self.panel = FigureCanvasWxAgg(self, -1, self.figure)
+        self.create_tool_bar()
+        if sys.platform != "darwin":
+            self.SetToolBar(self.navtoolbar)
+        else:
+            sizer.Add(self.navtoolbar, 0, wx.EXPAND)
         sizer.Add(self.panel, 1, wx.EXPAND) 
-        self.status_bar = self.CreateStatusBar()
         wx.EVT_CLOSE(self, self.on_close)
+        self.status_bar = StatusBarWx(self)
+        self.SetStatusBar(self.status_bar)
+        self.navtoolbar.set_status_bar(self.status_bar)
         if subplots:
             self.subplots = np.zeros(subplots,dtype=object)
         self.create_menu()
-        self.create_toolbar()
         self.figure.canvas.mpl_connect('button_press_event', self.on_button_press)
         self.figure.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
         self.figure.canvas.mpl_connect('button_release_event', self.on_button_release)
@@ -380,14 +387,19 @@ class CPFigureFrame(wx.Frame):
         wx.EVT_MENU(self, MENU_CLOSE_WINDOW, self.on_close)
         self.MenuBar.Append(make_help_menu(FIGURE_HELP, self), "&Help")
     
-    
-    def create_toolbar(self):
-        self.navtoolbar = CPNavigationToolbar(self.figure.canvas)
-        self.SetToolBar(self.navtoolbar)
-        if wx.VERSION != (2, 9, 1, 1, ''):
-            # avoid crash on latest wx 2.9
-            self.navtoolbar.DeleteToolByPos(6)
+    #
+    # The code for create_toolbar and GetToolBar is largely borrowed from
+    # matplotlib.backends.backend_wx.FigureFrameWx
+    #
+    def create_tool_bar(self):
+        self.navtoolbar = CPNavigationToolbar(self.panel)
+        self.navtoolbar.Realize()
         self.navtoolbar.Bind(EVT_NAV_MODE_CHANGE, self.on_navtool_changed)
+        return self.navtoolbar
+
+    def GetToolBar(self):
+        """Override wxFrame::GetToolBar as we don't have managed toolbar"""
+        return self.navtoolbar
 
     def clf(self):
         '''Clear the figure window, resetting the display'''

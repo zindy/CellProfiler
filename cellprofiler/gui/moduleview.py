@@ -367,7 +367,7 @@ class ModuleView:
 
     def set_selection(self, module_num):
         """Initialize the controls in the view to the settings of the module"""
-        self.module_panel.Freeze()
+        #self.module_panel.Freeze()
         self.__handle_change = False
         try:
             new_module          = self.__pipeline.module(module_num)
@@ -598,7 +598,7 @@ class ModuleView:
             self.__handle_change = True
             if self.__as_datatool:
                 self.module_panel.Layout()
-                self.module_panel.Thaw()
+                #self.module_panel.Thaw()
             elif self.__frame is not None:
                 if self.__started:
                     self.__frame.show_module_ui(True)
@@ -616,9 +616,10 @@ class ModuleView:
                 self.__frame.layout_pmi_panel()
                 self.top_panel.Layout()
                 self.module_panel.FitInside()
-                self.module_panel.Thaw()
+                #self.module_panel.Thaw()
             else:
-                self.module_panel.Thaw()
+                #self.module_panel.Thaw()
+                pass
 
     def make_notes_gui(self):
         '''Make the GUI elements that contain the module notes'''
@@ -632,6 +633,8 @@ class ModuleView:
         self.notes_panel.SetSizer(notes_sizer)
         self.module_notes_control = wx.TextCtrl(
             self.notes_panel, -1, style = wx.TE_MULTILINE|wx.TE_PROCESS_ENTER)
+        tl_height = self.module_notes_control.GetTextExtent("W")[1]
+        self.module_notes_control.SetMinClientSize((-1, tl_height * 2))
         notes_sizer.Add(self.module_notes_control, 1, wx.EXPAND)
         def on_notes_changed(event):
             if not self.__handle_change:
@@ -672,7 +675,7 @@ class ModuleView:
             yes, no = [control.FindWindowByName(name) 
                        for name in yes_name, no_name]
         
-        if (yes.Value and not v.value) or (no.Value and v.value):
+        if (not yes.Value and v.value) or (no.Value and not v.value):
             yes.SetValue(v.value)
             no.SetValue(not v.value)
         return control
