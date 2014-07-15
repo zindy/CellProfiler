@@ -33,6 +33,7 @@ output: contains the .msi if you did the msi commmand
 from distutils.core import setup
 import distutils.core
 import distutils.errors
+import h5py
 import py2exe
 import sys
 import glob
@@ -43,6 +44,7 @@ import _winreg
 import matplotlib
 import pyreadline
 import tempfile
+import traceback
 import xml.dom.minidom
 
 CP_NO_ILASTIK = "CP_NO_ILASTIK"
@@ -234,7 +236,7 @@ class CellProfilerCodesign(distutils.core.Command):
         
 opts = {
     'py2exe': { "includes" : ["numpy", "scipy","PIL","wx",
-                              "matplotlib", "matplotlib.numerix.random_array",
+                              "matplotlib", 
                               "h5py", "h5py.*", "pdb", "readline",
                               "pyreadline", "pyreadline.console",
                               "pyreadline.console.console",
@@ -249,14 +251,17 @@ opts = {
        }
 
 data_files = []
+    
 ####################################
 #
 # H5PY / HDF5 fixups
 #
 ####################################
 opts['py2exe']['includes'] += [
-    "h5py", "h5py._stub", "h5py._conv", "h5py.utils", "h5py._proxy"]
-
+    "h5py", "h5py._conv", "h5py.utils", "h5py._proxy"]
+if h5py.__version__ < "2.0.0":
+    opts['py2exe']['includes'] += ["h5py._stub"]
+    
 ####################################
 #
 # Ilastik fixups
@@ -441,6 +446,8 @@ try:
                     'codesign':CellProfilerCodesign
                     },
           options=opts)
+except ImportError, ie:
+    traceback.print_exc()
 finally:
     try:
         import cellprofiler.utilities.jutil as jutil
@@ -449,6 +456,5 @@ finally:
         sys.stdout.flush()
         os._exit(0)
     except:
-        import traceback
         traceback.print_exc()
         print "Caught exception while killing VM"
