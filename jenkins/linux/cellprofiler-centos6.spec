@@ -7,6 +7,8 @@
 %define javabridge_version 1.0.9
 %define bioformats_version 1.0.3
 %define cython_version 0.20.2
+%define numpy_version 1.9.0
+%define scipy_version 0.13.2
 
 Name:      %{pkgname}
 Summary:   Cell image analysis software
@@ -18,8 +20,8 @@ URL:       http://www.cellprofiler.org/
 Packager:  Vebjorn Ljosa <ljosa@broad.mit.edu>
 BuildRoot: %{_tmppath}/%{pkgname}-buildroot
 Prefix:    %{pref}
-Requires:  cellprofiler-cython = %{cython_version} cellprofiler-python cellprofiler-ilastik cellprofiler-decorator cellprofiler-h5py cellprofiler-matplotlib cellprofiler-mysqlpython cellprofiler-scipy cellprofiler-scikit-learn cellprofiler-pysqlite cellprofiler-setuptools cellprofiler-wxpython cellprofiler-pyzmq cellprofiler-jdk cellprofiler-pil xorg-x11-fonts-Type1 liberation-fonts-common liberation-sans-fonts cellprofiler-javabridge = %{javabridge_version} cellprofiler-bioformats = %{bioformats_version}
-BuildRequires: gcc gcc-c++ cellprofiler-numpy-devel   cellprofiler-cython cellprofiler-python cellprofiler-ilastik cellprofiler-decorator cellprofiler-h5py cellprofiler-matplotlib cellprofiler-mysqlpython cellprofiler-scipy cellprofiler-pysqlite cellprofiler-setuptools cellprofiler-wxpython cellprofiler-pyzmq cellprofiler-jdk cellprofiler-javabridge
+Requires:  cellprofiler-cython = %{cython_version} cellprofiler-python cellprofiler-numpy = %{numpy_version} cellprofiler-ilastik cellprofiler-decorator cellprofiler-h5py cellprofiler-matplotlib cellprofiler-mysqlpython cellprofiler-scipy = %{scipy_version} cellprofiler-scikit-learn cellprofiler-pysqlite cellprofiler-setuptools cellprofiler-wxpython cellprofiler-pyzmq cellprofiler-jdk cellprofiler-pil xorg-x11-fonts-Type1 liberation-fonts-common liberation-sans-fonts cellprofiler-javabridge = %{javabridge_version} cellprofiler-bioformats = %{bioformats_version}
+BuildRequires: gcc gcc-c++ cellprofiler-numpy-devel = %{numpy_version}  cellprofiler-cython cellprofiler-python cellprofiler-ilastik cellprofiler-decorator cellprofiler-h5py cellprofiler-matplotlib cellprofiler-mysqlpython cellprofiler-scipy cellprofiler-pysqlite cellprofiler-setuptools cellprofiler-wxpython cellprofiler-pyzmq cellprofiler-jdk cellprofiler-javabridge
 
 %description
 Cell image analysis software
