@@ -5,7 +5,7 @@
 %define python %{pref}/bin/python
 %define githuburl git+git://github.com/CellProfiler
 %define javabridge_version 1.0.9
-%define bioformats_version 1.0.3
+%define bioformats_version 1.0.4
 %define cython_version 0.20.2
 %define numpy_version 1.9.0
 %define scipy_version 0.13.2
