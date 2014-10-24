@@ -49,7 +49,7 @@ BuildRequires: cellprofiler-scipy = %{scipy_version}
 BuildRequires: cellprofiler-pysqlite
 BuildRequires: cellprofiler-setuptools
 BuildRequires: cellprofiler-wxpython
-BuildRequires: cellprofiler-pyzmq =%{pyzmq_version}
+BuildRequires: cellprofiler-pyzmq = %{pyzmq_version}
 BuildRequires: cellprofiler-jdk
 BuildRequires: cellprofiler-javabridge
 
