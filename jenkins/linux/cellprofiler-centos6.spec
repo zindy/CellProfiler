@@ -9,6 +9,7 @@
 %define cython_version 0.20.2
 %define numpy_version 1.9.0
 %define scipy_version 0.13.2
+%define pyzmq_version 2.1.11
 
 Name:      %{pkgname}
 Summary:   Cell image analysis software
@@ -20,7 +21,21 @@ URL:       http://www.cellprofiler.org/
 Packager:  Vebjorn Ljosa <ljosa@broad.mit.edu>
 BuildRoot: %{_tmppath}/%{pkgname}-buildroot
 Prefix:    %{pref}
-Requires:  cellprofiler-cython = %{cython_version} cellprofiler-python cellprofiler-numpy = %{numpy_version} cellprofiler-ilastik cellprofiler-decorator cellprofiler-h5py cellprofiler-matplotlib cellprofiler-mysqlpython cellprofiler-scipy = %{scipy_version} cellprofiler-scikit-learn cellprofiler-pysqlite cellprofiler-setuptools cellprofiler-wxpython cellprofiler-pyzmq cellprofiler-jdk cellprofiler-pil xorg-x11-fonts-Type1 liberation-fonts-common liberation-sans-fonts cellprofiler-javabridge = %{javabridge_version} cellprofiler-bioformats = %{bioformats_version}
+Requires:  cellprofiler-cython = %{cython_version} 
+Requires:  cellprofiler-python
+Requires:  cellprofiler-numpy = %{numpy_version}
+Requires:  cellprofiler-ilastik cellprofiler-decorator 
+Requires:  cellprofiler-h5py cellprofiler-matplotlib 
+Requires:  cellprofiler-mysqlpython
+Requires:  cellprofiler-scipy = %{scipy_version}
+Requires:  cellprofiler-scikit-learn cellprofiler-pysqlite
+Requires:  cellprofiler-setuptools cellprofiler-wxpython
+Requires:  cellprofiler-pyzmq = %{pyzmq_version}
+Requires:  cellprofiler-jdk cellprofiler-pil
+Requires:  xorg-x11-fonts-Type1 liberation-fonts-common 
+Requires:  liberation-sans-fonts
+Requires:  cellprofiler-javabridge = %{javabridge_version}
+Requires:  cellprofiler-bioformats = %{bioformats_version}
 BuildRequires: gcc gcc-c++ cellprofiler-numpy-devel = %{numpy_version}  cellprofiler-cython cellprofiler-python cellprofiler-ilastik cellprofiler-decorator cellprofiler-h5py cellprofiler-matplotlib cellprofiler-mysqlpython cellprofiler-scipy cellprofiler-pysqlite cellprofiler-setuptools cellprofiler-wxpython cellprofiler-pyzmq cellprofiler-jdk cellprofiler-javabridge
 
 %description
