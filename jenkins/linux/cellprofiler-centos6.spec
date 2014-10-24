@@ -36,7 +36,22 @@ Requires:  xorg-x11-fonts-Type1 liberation-fonts-common
 Requires:  liberation-sans-fonts
 Requires:  cellprofiler-javabridge = %{javabridge_version}
 Requires:  cellprofiler-bioformats = %{bioformats_version}
-BuildRequires: gcc gcc-c++ cellprofiler-numpy-devel = %{numpy_version}  cellprofiler-cython cellprofiler-python cellprofiler-ilastik cellprofiler-decorator cellprofiler-h5py cellprofiler-matplotlib cellprofiler-mysqlpython cellprofiler-scipy cellprofiler-pysqlite cellprofiler-setuptools cellprofiler-wxpython cellprofiler-pyzmq cellprofiler-jdk cellprofiler-javabridge
+BuildRequires: gcc gcc-c++ 
+BuildRequires: cellprofiler-numpy-devel = %{numpy_version}
+BuildRequires: cellprofiler-cython = %{cython_version}
+BuildRequires: cellprofiler-python
+BuildRequires: cellprofiler-ilastik
+BuildRequires: cellprofiler-decorator
+BuildRequires: cellprofiler-h5py
+BuildRequires: cellprofiler-matplotlib
+BuildRequires: cellprofiler-mysqlpython
+BuildRequires: cellprofiler-scipy = %{scipy_version}
+BuildRequires: cellprofiler-pysqlite
+BuildRequires: cellprofiler-setuptools
+BuildRequires: cellprofiler-wxpython
+BuildRequires: cellprofiler-pyzmq =%{pyzmq_version}
+BuildRequires: cellprofiler-jdk
+BuildRequires: cellprofiler-javabridge
 
 %description
 Cell image analysis software
