@@ -645,7 +645,7 @@ class ModuleView:
             if not self.__handle_change:
                 return
             if self.__module is not None:
-                notes = str(self.module_notes_control.Value)
+                notes = self.module_notes_control.Value.encode('utf-8')
                 self.__module.notes = notes.split('\n')
         self.notes_panel.Bind(wx.EVT_TEXT, on_notes_changed,
                                self.module_notes_control)
@@ -1077,6 +1077,10 @@ class ModuleView:
             control.label_text = None
             def on_press(event, v=v, control=control):
                 id_dict = {}
+                def on_event(event, v = v, control = control, id_dict = id_dict):
+                    new_path = v.encode_path_parts(id_dict[event.GetId()])
+                    self.on_value_change(v, control, new_path, event)
+                
                 def make_menu(tree, id_dict = id_dict, path = []):
                     menu = wx.Menu()
                     for node in tree:
@@ -1085,6 +1089,7 @@ class ModuleView:
                         if v.fn_is_leaf(node):
                             item = menu.Append(-1, text)
                             id_dict[item.GetId()] = subpath
+                            wx.EVT_MENU(menu, item.GetId(), on_event)
                         if subtree is not None and len(subtree) > 0:
                             submenu = make_menu(subtree, path = subpath)
                             menu.AppendMenu(-1, text, submenu)
@@ -1092,11 +1097,6 @@ class ModuleView:
                 
                 menu = make_menu(v.get_tree())
                 assert isinstance(control, wx.Window)
-                def on_event(event, v = v, control = control, id_dict = id_dict):
-                    new_path = v.encode_path_parts(id_dict[event.GetId()])
-                    self.on_value_change(v, control, new_path, event)
-                    
-                menu.Bind(wx.EVT_MENU, on_event)
                 control.PopupMenuXY(menu, 0, control.GetSize()[1])
                 menu.Destroy()
             control.Bind(wx.EVT_BUTTON, on_press)
