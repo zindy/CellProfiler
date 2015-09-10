@@ -242,7 +242,8 @@ class PipelineListView(object):
         # display a tooltip over a transparent window in front of the disabled
         # window. 
         #
-        if sys.platform.startswith('linux'):
+        if sys.platform.startswith('linux') or \
+           (wx.VERSION > (2, 9) and sys.platform == 'darwin'):
             self.transparent_window = None
             return # Doesn't work right.
         transparent_window = wx.Panel(self.__panel)
@@ -1294,6 +1295,7 @@ class PipelineListCtrl(wx.PyScrolledWindow):
         if self.running_item >= index:
             self.running_item += 1
         self.AdjustScrollbars()
+        self.SetBestSize(self.GetVirtualSize())
         self.Refresh(eraseBackground=False)
     
     def get_insert_index(self, position):

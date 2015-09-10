@@ -372,9 +372,11 @@ class ModuleView:
         return settings
 
 
+    DO_FREEZE = wx.VERSION < (2, 9, 0, 0)
     def set_selection(self, module_num):
         """Initialize the controls in the view to the settings of the module"""
-        self.module_panel.Freeze()
+        if self.DO_FREEZE:
+            self.module_panel.Freeze()
         self.__handle_change = False
         imageset_control    = None
         path_control        = None
@@ -606,7 +608,8 @@ class ModuleView:
             self.__handle_change = True
             if self.__as_datatool:
                 self.module_panel.Layout()
-                self.module_panel.Thaw()
+                if self.DO_FREEZE:
+                    self.module_panel.Thaw()
             elif self.__frame is not None:
                 if self.__started:
                     self.__frame.show_module_ui(True)
@@ -624,9 +627,11 @@ class ModuleView:
                 self.__frame.layout_pmi_panel()
                 self.top_panel.Layout()
                 self.module_panel.FitInside()
-                self.module_panel.Thaw()
+                if self.DO_FREEZE:
+                    self.module_panel.Thaw()
             else:
-                self.module_panel.Thaw()
+                if self.DO_FREEZE:
+                    self.module_panel.Thaw()
 
     def make_notes_gui(self):
         '''Make the GUI elements that contain the module notes'''
