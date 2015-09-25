@@ -304,6 +304,7 @@ class CPFigureFrame(wx.Frame):
             matplotlib.rcdefaults()
         self.figure = figure = matplotlib.figure.Figure()
         self.panel = FigureCanvasWxAgg(self, -1, self.figure)
+        self.panel.SetInitialSize(wx.Size(640, 480))
         if secret_panel_class is None:
             secret_panel_class = wx.Panel
         self.secret_panel = secret_panel_class(self)
