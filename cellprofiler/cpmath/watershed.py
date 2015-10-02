@@ -1,5 +1,7 @@
-from centrosome.watershed import watershed as __watershed__
+from cellprofiler.cpmath import bind_members
 
+# __dummy__ is only misused to get its module metadata
+def __dummy__():
+    pass
 
-def watershed(image, markers, connectivity=None, offset=None, mask=None):
-    return __watershed__(image, markers, connectivity, offset, mask)
+bind_members(__dummy__)
