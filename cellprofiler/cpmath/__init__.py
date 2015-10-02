@@ -1,18 +1,19 @@
 import inspect
 import importlib
+import sys
 import warnings
 from exceptions import DeprecationWarning
 warnings.warn(
     "This package is deprecated, please use centrosome instead",
     DeprecationWarning)
 
-def bind_members(module_function):
+def bind_members(full_module_name):
     '''Bind the members of centrosome's version of a module
     
     module_function - determine the module to bind by inspecting this function
     '''
-    module = inspect.getmodule(module_function)
-    module_name = module.__name__.rsplit(".")[-1]
+    module = sys.modules[full_module_name]
+    module_name = full_module_name.rsplit(".")[-1]
     warnings.warn(
         "This package is deprecated, please use centrosome.%s instead" % 
         module_name,

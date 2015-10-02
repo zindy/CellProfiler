@@ -45,6 +45,3 @@ class TestCPMath(unittest.TestCase):
             from cellprofiler.cpmath.watershed import watershed
             self.check_warning(w, count)
             from cellprofiler.cpmath.zernike import zernike
-
-if __name__ == "__main__":
-    unittest.main()
