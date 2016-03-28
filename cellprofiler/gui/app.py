@@ -1,25 +1,18 @@
-# coding=utf-8
-
-import cellprofiler.gui.errordialog
-import cellprofiler.preferences
-import cellprofiler.utilities.thread_excepthook
-import cellprofiler.utilities.version
-import os
-import pip
-import platform
-import raven
-import raven.versioning
 import sys
 import wx
+import cellprofiler.preferences
+import cellprofiler.gui.errordialog
+import cellprofiler.utilities.thread_excepthook
+
 
 cellprofiler.utilities.thread_excepthook.install_thread_sys_excepthook()
 
 
-class CellProfilerApp(wx.App):
+class App(wx.App):
     def __excepthook__(self, exception, message, tracback):
         def callback():
             self.client.captureException(
-                exc_info=(exception, message, tracback)
+                    exc_info=(exception, message, tracback)
             )
 
             cellprofiler.preferences.cancel_progress()
@@ -41,17 +34,17 @@ class CellProfilerApp(wx.App):
             release = raven.fetch_package_version("cellprofiler")
 
         self.client = raven.Client(
-            dsn="https://3d53494dbaaf4e858afd79f56506a749:8a7a767a1924423f89c1fdfd69717fd5@app.getsentry.com/70887",
-            release=release,
+                dsn="https://3d53494dbaaf4e858afd79f56506a749:8a7a767a1924423f89c1fdfd69717fd5@app.getsentry.com/70887",
+                release=release,
         )
 
         self.client.user_context({
             "installed_distributions": sorted(
-                [
-                    "{0:s}=={1:s}".format(
-                            distribution.key, distribution.version
-                    ) for distribution in pip.get_installed_distributions()
-                ]
+                    [
+                        "{0:s}=={1:s}".format(
+                                distribution.key, distribution.version
+                        ) for distribution in pip.get_installed_distributions()
+                        ]
             ),
             "machine": platform.machine(),
             "processor": platform.processor(),
@@ -74,9 +67,9 @@ class CellProfilerApp(wx.App):
         import cellprofiler.gui.cpframe
 
         self.SetAppName(
-            u"CellProfiler{0:s}".format(
-                cellprofiler.utilities.version.dotted_version
-            )
+                u"CellProfiler{0:s}".format(
+                        cellprofiler.utilities.version.dotted_version
+                )
         )
 
         self.frame = cellprofiler.gui.cpframe.CPFrame(None, -1, "CellProfiler")
