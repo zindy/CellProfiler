@@ -16,7 +16,7 @@ class App(wx.App):
     def __excepthook__(self, exception, message, tracback):
         def callback():
             self.client.captureException(
-                    exc_info=(exception, message, tracback)
+                exc_info=(exception, message, tracback)
             )
 
             cellprofiler.preferences.cancel_progress()
@@ -38,18 +38,16 @@ class App(wx.App):
             release = raven.fetch_package_version("cellprofiler")
 
         self.client = raven.Client(
-                dsn="https://3d53494dbaaf4e858afd79f56506a749:8a7a767a1924423f89c1fdfd69717fd5@app.getsentry.com/70887",
-                release=release,
+            dsn="https://3d53494dbaaf4e858afd79f56506a749:8a7a767a1924423f89c1fdfd69717fd5@app.getsentry.com/70887",
+            release=release,
         )
 
         self.client.user_context({
-            "installed_distributions": sorted(
-                    [
-                        "{0:s}=={1:s}".format(
-                                distribution.key, distribution.version
-                        ) for distribution in pip.get_installed_distributions()
-                        ]
-            ),
+            "installed_distributions": sorted([
+                "{0:s}=={1:s}".format(
+                    distribution.key, distribution.version
+                ) for distribution in pip.get_installed_distributions()
+            ]),
             "machine": platform.machine(),
             "processor": platform.processor(),
             "python_implementation": platform.python_implementation(),
@@ -71,9 +69,9 @@ class App(wx.App):
         import cellprofiler.gui.cpframe
 
         self.SetAppName(
-                u"CellProfiler{0:s}".format(
-                        cellprofiler.utilities.version.dotted_version
-                )
+            u"CellProfiler{0:s}".format(
+                cellprofiler.utilities.version.dotted_version
+            )
         )
 
         self.frame = cellprofiler.gui.cpframe.CPFrame(None, -1, "CellProfiler")
