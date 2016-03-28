@@ -16,7 +16,12 @@ class App(wx.App):
     def __excepthook__(self, exception, message, tracback):
         def callback():
             self.client.captureException(
-                exc_info=(exception, message, tracback)
+                exc_info=(exception, message, tracback),
+                extra={
+                    "modules": [
+                        module.module_name for module in self.frame.pipeline.modules()
+                    ]
+                }
             )
 
             cellprofiler.preferences.cancel_progress()
