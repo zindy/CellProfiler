@@ -1,3 +1,7 @@
+import os
+import pip
+import platform
+import raven
 import sys
 import wx
 import cellprofiler.preferences
@@ -61,7 +65,7 @@ class App(wx.App):
 
         self.workspace_path = kwargs.pop('workspace_path', None)
 
-        super(CellProfilerApp, self).__init__(*args, **kwargs)
+        super(App, self).__init__(*args, **kwargs)
 
     def OnInit(self):
         import cellprofiler.gui.cpframe
