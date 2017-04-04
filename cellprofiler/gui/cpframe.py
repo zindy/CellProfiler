@@ -2,26 +2,27 @@
 """ CellProfiler.CellProfilerGUI.CPFrame - Cell Profiler's main window
 """
 
+import cellprofiler
 import cellprofiler.gui
 import cellprofiler.gui.figure
 import cellprofiler.gui.datatoolframe
 import cellprofiler.gui.dialog
-import cellprofiler.gui.errordialog
 import cellprofiler.gui.help
 import cellprofiler.gui.html
 import cellprofiler.gui.html.htmlwindow
 import cellprofiler.gui.imagesetctrl
 import cellprofiler.gui.moduleview
 import cellprofiler.gui.pathlist
+import cellprofiler.gui.pipeline
 import cellprofiler.gui.pipelinecontroller
 import cellprofiler.gui.pipelinelistview
 import cellprofiler.gui.preferencesdlg
 import cellprofiler.gui.preferencesview
+import cellprofiler.gui.workspace
 import cellprofiler.icons
 import cellprofiler.modules
 import cellprofiler.pipeline
 import cellprofiler.preferences
-import cellprofiler.utilities.version
 import cellprofiler.workspace
 import inspect
 import logging
@@ -120,8 +121,8 @@ class CPFrame(wx.Frame):
         """
         kwds["style"] = wx.DEFAULT_FRAME_STYLE
         wx.Frame.__init__(self, *args, **kwds)
-        self.__pipeline = cellprofiler.pipeline.Pipeline()
-        self.__workspace = cellprofiler.workspace.Workspace(
+        self.__pipeline = cellprofiler.gui.pipeline.Pipeline()
+        self.__workspace = cellprofiler.gui.workspace.Workspace(
                 self.__pipeline, None, None, None, None, None)
         # background_color = cellprofiler.preferences.get_background_color()
         self.__splitter = wx.SplitterWindow(self, -1, style=wx.SP_BORDER)
@@ -472,7 +473,7 @@ class CPFrame(wx.Frame):
         wx.GetApp().ExitMainLoop()
 
     def __set_properties(self):
-        self.SetTitle("CellProfiler %s" % cellprofiler.utilities.version.title_string)
+        self.SetTitle("CellProfiler %s" % cellprofiler.__version__)
         self.SetSize((1024, 600))
 
     def enable_edit_commands(self, ids):
@@ -632,6 +633,7 @@ class CPFrame(wx.Frame):
                                  'Choose which image set group to process in test-mode')
         self.__menu_debug.Append(ID_DEBUG_CHOOSE_IMAGE_SET, 'Choose Image Set',
                                  'Choose any of the available image sets')
+        self.__menu_debug.Append(ID_DEBUG_VIEW_WORKSPACE, "View Workspace", "Show the workspace viewer")
         if not hasattr(sys, 'frozen') or os.getenv('CELLPROFILER_DEBUG'):
             self.__menu_debug.Append(ID_DEBUG_RELOAD, "Reload Modules' Source")
             self.__menu_debug.Append(ID_DEBUG_PDB, "Break Into Debugger")
@@ -646,6 +648,7 @@ class CPFrame(wx.Frame):
         self.__menu_debug.Enable(ID_DEBUG_CHOOSE_GROUP, False)
         self.__menu_debug.Enable(ID_DEBUG_CHOOSE_IMAGE_SET, False)
         self.__menu_debug.Enable(ID_DEBUG_CHOOSE_RANDOM_IMAGE_SET, False)
+        self.__menu_debug.Enable(ID_DEBUG_VIEW_WORKSPACE, False)
 
         self.__menu_window = wx.Menu()
         self.__menu_window.Append(ID_WINDOW_CLOSE_ALL, "Close &All Open Windows\tctrl+L",
@@ -872,7 +875,8 @@ class CPFrame(wx.Frame):
     debug_commands = (ID_DEBUG_STEP, ID_DEBUG_NEXT_IMAGE_SET,
                       ID_DEBUG_NEXT_GROUP, ID_DEBUG_CHOOSE_GROUP,
                       ID_DEBUG_CHOOSE_IMAGE_SET,
-                      ID_DEBUG_CHOOSE_RANDOM_IMAGE_SET)
+                      ID_DEBUG_CHOOSE_RANDOM_IMAGE_SET,
+                      ID_DEBUG_VIEW_WORKSPACE)
 
     def enable_debug_commands(self):
         """Enable or disable the debug commands (like ID_DEBUG_STEP)"""
@@ -947,7 +951,7 @@ class CPFrame(wx.Frame):
     @staticmethod
     def __on_help_developers_guide(event):
         import webbrowser
-        webbrowser.open("http://www.cellprofiler.org/wiki/index.php/Main_Page")
+        webbrowser.open("https://github.com/CellProfiler/CellProfiler/wiki")
 
     @staticmethod
     def __on_help_source_code(event):
@@ -1299,18 +1303,6 @@ class CPFrame(wx.Frame):
     def __on_data_tool_help(self, event, tool_name):
         module = cellprofiler.modules.instantiate_module(tool_name)
         self.do_help_module(tool_name, module.get_help())
-
-    def display_error(self, message, error):
-        """Displays an exception in a standardized way
-
-        """
-        for listener in self.__error_listeners:
-            listener(message, error)
-        tb = sys.exc_info()[2]
-        traceback.print_tb(tb)
-        text = '\n'.join(traceback.format_list(traceback.extract_tb(tb)))
-        text = error.message + '\n' + text
-        cellprofiler.gui.errordialog.display_error_message(self, text, "Caught exception during operation")
 
     def add_error_listener(self, listener):
         """Add a listener for display errors"""

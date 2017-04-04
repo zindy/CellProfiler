@@ -328,6 +328,7 @@ MODULEDIRECTORY = 'ModuleDirectory'
 SKIPVERSION = 'SkipVersion2.1'
 FF_RECENTFILES = 'RecentFile%d'
 STARTUPBLURB = 'StartupBlurb'
+TELEMETRY = "Telemetry"
 RECENT_FILE_COUNT = 10
 PRIMARY_OUTLINE_COLOR = 'PrimaryOutlineColor'
 SECONDARY_OUTLINE_COLOR = 'SecondaryOutlineColor'
@@ -422,7 +423,7 @@ ALL_KEYS = ([ALLOW_OUTPUT_FILE_OVERWRITE, BACKGROUND_COLOR,
              PRIMARY_OUTLINE_COLOR, SECONDARY_OUTLINE_COLOR,
              SHOW_ANALYSIS_COMPLETE_DLG, SHOW_BAD_SIZES_DLG,
              SHOW_EXITING_TEST_MODE_DLG, WORKSPACE_CHOICE,
-             SHOW_SAMPLING, SKIPVERSION, STARTUPBLURB,
+             SHOW_SAMPLING, SKIPVERSION, STARTUPBLURB, TELEMETRY,
              TABLE_FONT_NAME, TABLE_FONT_SIZE, TERTIARY_OUTLINE_COLOR,
              TITLE_FONT_NAME, TITLE_FONT_SIZE, WARN_ABOUT_OLD_PIPELINE,
              WRITE_MAT, USE_MORE_FIGURE_SPACE, WORKSPACE_FILE,
@@ -964,6 +965,16 @@ def update_cpfigure_position():
         __cpfigure_position = (__cpfigure_position[0] + 120,
                                __cpfigure_position[1] + 24)
 
+def get_telemetry():
+    if not config_exists(TELEMETRY):
+        return True
+
+    return get_config().ReadBool(TELEMETRY)
+
+
+def set_telemetry(val):
+    get_config().WriteBool(TELEMETRY, val)
+
 
 def get_startup_blurb():
     if not config_exists(STARTUPBLURB):
@@ -1152,26 +1163,6 @@ def set_write_MAT_files(value):
     config_write(WRITE_MAT,
                  WRITE_HDF5 if value == WRITE_HDF5
                  else "True" if value else "False")
-
-__use_more_figure_space = None
-
-
-def get_use_more_figure_space():
-    '''Return True if CP should use more of the figure space'''
-    global __use_more_figure_space
-    if __use_more_figure_space is not None:
-        return __use_more_figure_space
-    if not config_exists(USE_MORE_FIGURE_SPACE):
-        return False
-    return config_read(USE_MORE_FIGURE_SPACE) == "True"
-
-
-def set_use_more_figure_space(value):
-    '''Set the "use more figure space" flag'''
-    global __use_more_figure_space
-    __use_more_figure_space = value
-    config_write(USE_MORE_FIGURE_SPACE,
-                 "True" if value else "False")
 
 
 __workspace_file = None

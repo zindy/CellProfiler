@@ -2,6 +2,7 @@
 """ModuleView.py - implements a view on a module
 """
 
+import cellprofiler.gui.pipeline
 import cellprofiler.icons
 import cellprofiler.pipeline
 import cellprofiler.preferences
@@ -598,6 +599,9 @@ class ModuleView(object):
                 elif isinstance(v, cellprofiler.setting.DataTypes):
                     control = DataTypeController.update_control(self, v)
                     flag = wx.ALIGN_LEFT
+                elif isinstance(v, cellprofiler.setting.StructuringElement):
+                    control = self.make_structuring_element_control(v, control_name, control)
+                    text_sizer_item.Flag = wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL | wx.ALL
                 else:
                     control = self.make_text_control(v, control_name, control)
                 sizer.Add(control, 0, flag, border)
@@ -644,6 +648,87 @@ class ModuleView(object):
             else:
                 if self.DO_FREEZE:
                     self.module_panel.Thaw()
+
+    def make_structuring_element_control(self, v, control_name, control):
+        shape_control_name = combobox_ctrl_name(v)
+        size_control_name = text_control_name(v)
+
+        if control is None:
+            control = wx.Panel(
+                self.module_panel,
+                style=wx.TAB_TRAVERSAL,
+                name=control_name
+            )
+
+            shape_control_text = wx.StaticText(
+                control,
+                label="Shape",
+                style=wx.ALIGN_LEFT
+            )
+
+            shape_control = wx.ComboBox(
+                control,
+                choices=v.get_choices(),
+                style=wx.CB_READONLY,
+                name=shape_control_name,
+                value=v.shape
+            )
+
+            def on_select_shape(event, setting=v, control=shape_control):
+                setting.shape = event.GetString()
+                new_value = setting.value_text
+                self.on_value_change(setting, control, new_value, event)
+
+            shape_control.Bind(wx.EVT_COMBOBOX, on_select_shape)
+
+            size_control_text = wx.StaticText(
+                control,
+                label="Size",
+                style=wx.ALIGN_LEFT
+            )
+
+            size_control = wx.TextCtrl(
+                control,
+                name=size_control_name,
+                value=str(v.size)
+            )
+
+            def on_set_size(event):
+                v.size = int(event.GetString())
+                new_value = v.value_text
+                self.notify(SettingEditedEvent(v, self.__module, new_value, event))
+
+            self.__module_panel.Bind(wx.EVT_TEXT, on_set_size, size_control)
+
+            shape_sizer = wx.BoxSizer(wx.VERTICAL)
+
+            shape_sizer.Add(shape_control_text)
+
+            shape_sizer.Add(shape_control)
+
+            size_sizer = wx.BoxSizer(wx.VERTICAL)
+
+            size_sizer.Add(size_control_text)
+
+            size_sizer.Add(size_control)
+
+            sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+            sizer.Add(shape_sizer)
+
+            sizer.Add(size_sizer)
+
+            control.SetSizer(sizer)
+        else:
+            shape_control = self.module_panel.FindWindowByName(shape_control_name)
+
+            size_control = self.module_panel.FindWindowByName(size_control_name)
+
+            shape_control.SetStringSelection(v.shape)
+
+            size_control.Value = str(v.size)
+
+        return control
 
     def make_notes_gui(self):
         """Make the GUI elements that contain the module notes"""
@@ -825,7 +910,7 @@ class ModuleView(object):
                     leaf_state = d[None]
                     for subtree_key in [x for x in d.keys() if x is not None]:
                         subtree_state = get_state(d[subtree_key])
-                        if leaf_state is 0:
+                        if leaf_state == 0:
                             leaf_state = subtree_state
                         elif leaf_state != subtree_state:
                             leaf_state = None
@@ -2120,7 +2205,7 @@ class ModuleView(object):
                 self.clear_selection()
 
     def __on_workspace_event(self, event):
-        import cellprofiler.workspace as cpw
+        import cellprofiler.gui.workspace as cpw
         if isinstance(event, (cpw.Workspace.WorkspaceLoadedEvent,
                               cpw.Workspace.WorkspaceCreatedEvent)):
             # Detach and reattach the current module to get it reacclimated
@@ -2213,7 +2298,7 @@ class ModuleView(object):
             return
         if self.refresh_pending:
             return
-        refresh_pending = True
+        self.refresh_pending = True
         wx.CallLater(refresh_delay, self.do_reset)
 
     def do_reset(self):
@@ -2230,6 +2315,8 @@ class ModuleView(object):
             focus_control = self.module_panel.FindWindowByName(focus_name)
             if focus_control:
                 focus_control.SetFocus()
+                if isinstance(focus_control, wx.TextCtrl):
+                    focus_control.SetSelection(focus_control.GetLastPosition(), focus_control.GetLastPosition())
 
     def disable(self):
         self.__module_panel.Disable()
@@ -2807,7 +2894,7 @@ class FileCollectionDisplayController(object):
         assert isinstance(v, cellprofiler.setting.FileCollectionDisplay)
         self.module_view = module_view
         self.v = v
-        assert isinstance(pipeline, cellprofiler.pipeline.Pipeline)
+        assert isinstance(pipeline, cellprofiler.gui.pipeline.Pipeline)
         self.pipeline = pipeline
         self.panel = wx.Panel(self.module_view.module_panel, -1,
                               name=edit_control_name(v))

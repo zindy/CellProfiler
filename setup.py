@@ -1,6 +1,7 @@
 import distutils
 import glob
 import importlib
+import math
 import os
 import shlex
 import setuptools
@@ -8,7 +9,6 @@ import setuptools.command.build_py
 import setuptools.command.sdist
 import setuptools.dist
 import sys
-import cellprofiler.utilities.version
 
 # Recipe needed to get real distutils if virtualenv.
 # Error message is "ImportError: cannot import name dist"
@@ -55,7 +55,6 @@ setuptools.dist.Distribution({
 
 try:
     import matplotlib
-    import numpy  # for proper discovery of its libraries by distutils
     import scipy.sparse.csgraph._validation
     import scipy.linalg
     import zmq  # for proper discovery of its libraries by distutils
@@ -83,57 +82,6 @@ if sys.platform.startswith("win"):
     # See http://www.py2exe.org/index.cgi/Py2exeAndzmq
     # Recipe needed for py2exe to package libzmq.dll
     os.environ["PATH"] += os.path.pathsep + os.path.split(zmq.__file__)[0]
-
-
-def should_build_version(command):
-    '''Test to see whether we should run the "build_version" command'''
-    bv_command = command.get_finalized_command("build_version")
-    if not os.path.exists(bv_command.frozen_version_filename):
-        return True
-    return cellprofiler.utilities.version.get_git_dir() is None
-
-
-class BuildPy(setuptools.command.build_py.build_py):
-    def run(self):
-        bv_command = self.get_finalized_command("build_version")
-        if should_build_version(bv_command):
-            bv_command.run()
-        setuptools.command.build_py.build_py.run(self)
-
-    def get_source_files(self):
-        source_files = \
-            setuptools.command.build_py.build_py.get_source_files(self)
-        bv_command = self.get_finalized_command("build_version")
-        fv_filename = bv_command.frozen_version_filename
-        if fv_filename not in source_files:
-            source_files.append(fv_filename)
-        return sorted(source_files)
-
-
-class BuildVersion(setuptools.Command):
-    user_options = [
-        ("version", None, "CellProfiler semantic version")]
-
-    def initialize_options(self):
-        self.version = None
-        self.frozen_version_filename = None
-
-    def finalize_options(self):
-        if self.version is None:
-            self.version = self.distribution.metadata.version
-        if self.frozen_version_filename is None:
-            self.frozen_version_filename = os.path.join(
-                    "cellprofiler", "frozen_version.py")
-
-    def run(self):
-        with open(self.frozen_version_filename, "w") as fd:
-            fd.write("version_string='%s'\n" %
-                     cellprofiler.utilities.version.version_string)
-            fd.write("dotted_version='%s'\n" % self.version)
-
-
-setuptools.command.sdist.sdist.sub_commands.insert(
-        0, ("build_version", should_build_version))
 
 
 class Test(setuptools.Command):
@@ -172,16 +120,6 @@ class Test(setuptools.Command):
         except:
             pass
 
-        try:
-            import ilastik.core.jobMachine
-
-            try:
-                ilastik.core.jobMachine.GLOBAL_WM.set_thread_count(1)
-            except AttributeError:
-                ilastik.core.jobMachine.GLOBAL_WM.setThreadCount(1)
-        except ImportError:
-            pass
-
         cellprofiler.utilities.cpjvm.cp_start_vm()
 
         errno = pytest.main(self.pytest_args)
@@ -195,14 +133,11 @@ if has_py2exe:
     class CPPy2Exe(py2exe.build_exe.py2exe):
         user_options = py2exe.build_exe.py2exe.user_options + [
             ("msvcrt-redist=", None,
-             "Directory containing the MSVC redistributables"),
-            ("with-ilastik", None,
-             "Build CellProfiler with Ilastik dependencies")]
+             "Directory containing the MSVC redistributables")]
 
         def initialize_options(self):
             py2exe.build_exe.py2exe.initialize_options(self)
             self.msvcrt_redist = None
-            self.with_ilastik = None
 
         def finalize_options(self):
             py2exe.build_exe.py2exe.finalize_options(self)
@@ -220,8 +155,6 @@ if has_py2exe:
                             "Package will not include MSVCRT redistributables", 3)
 
         def run(self):
-            self.reinitialize_command("build_version", inplace=1)
-            self.run_command("build_version")
             #
             # py2exe runs install_data a second time. We want to inject some
             # data files into the dist but we do it here so that if the user
@@ -270,28 +203,6 @@ if has_py2exe:
                     self.distribution.data_files.append(
                             (".", [zmq.libzmq.__file__]))
                     self.dll_excludes.append("libzmq.pyd")
-            #
-            # Add ilastik UI files
-            #
-            if self.with_ilastik:
-                import ilastik
-                ilastik_root = os.path.dirname(ilastik.__file__)
-                for root, directories, filenames in os.walk(ilastik_root):
-                    relpath = root[len(os.path.dirname(ilastik_root)) + 1:]
-                    ui_filenames = [
-                        os.path.join(root, f) for f in filenames
-                        if any([f.lower().endswith(ext)
-                                for ext in ".ui", ".png"])]
-                    if len(ui_filenames) > 0:
-                        self.distribution.data_files.append(
-                                (relpath, ui_filenames))
-
-                #
-                # Prevent rename of vigranumpycore similarly to libzmq
-                #
-                import vigra.vigranumpycore
-                self.distribution.data_files.append(
-                        (".", [vigra.vigranumpycore.__file__]))
 
             if self.msvcrt_redist is not None:
                 sources = [
@@ -306,15 +217,12 @@ if has_py2exe:
     class CellProfilerMSI(distutils.core.Command):
         description = \
             "Make CellProfiler.msi using the CellProfiler.iss InnoSetup compiler"
-        user_options = [("with-ilastik", None,
-                         "Include a start menu entry for Ilastik"),
-                        ("output-dir=", None,
+        user_options = [("output-dir=", None,
                          "Output directory for MSI file"),
                         ("msi-name=", None,
                          "Name of MSI file to generate (w/o extension)")]
 
         def initialize_options(self):
-            self.with_ilastik = None
             self.py2exe_dist_dir = None
             self.output_dir = None
             self.msi_name = None
@@ -325,8 +233,7 @@ if has_py2exe:
             if self.output_dir is None:
                 self.output_dir = ".\\output"
             if self.msi_name is None:
-                self.msi_name = \
-                    "CellProfiler-" + self.distribution.metadata.version
+                self.msi_name = "CellProfiler"
 
         def run(self):
             if not os.path.isdir(self.output_dir):
@@ -339,13 +246,7 @@ if has_py2exe:
     """ % (self.distribution.metadata.version,
            self.msi_name,
            self.output_dir))
-            with open("ilastik.iss", "w") as fd:
-                if self.with_ilastik:
-                    fd.write(
-                            'Name: "{group}\Ilastik"; '
-                            'Filename: "{app}\CellProfiler.exe"; '
-                            'Parameters:"--ilastik"; WorkingDir: "{app}"\n')
-            if numpy.log(sys.maxsize) / numpy.log(2) > 32:
+            if math.log(sys.maxsize) / math.log(2) > 32:
                 cell_profiler_iss = "CellProfiler64.iss"
             else:
                 cell_profiler_iss = "CellProfiler.iss"
@@ -361,7 +262,6 @@ if has_py2exe:
                     self.spawn, [compile_command],
                     "Compiling %s" % cell_profiler_iss)
             os.remove("version.iss")
-            os.remove("ilastik.iss")
 
         def __compile_command(self):
             """Return the command to use to compile an .iss file
@@ -383,14 +283,15 @@ if has_py2exe:
                     "Compile\\command"
 
 cmdclass = {
-    "build_version": BuildVersion,
-    "build_py": BuildPy,
     "test": Test
 }
 
 if has_py2exe:
     cmdclass["py2exe"] = CPPy2Exe
     cmdclass["msi"] = CellProfilerMSI
+
+version_file = open(os.path.join(os.path.dirname(__file__), "cellprofiler", "VERSION"))
+version = version_file.read().strip()
 
 setuptools.setup(
         app=[
@@ -423,6 +324,9 @@ setuptools.setup(
             }
         ],
         description="",
+        dependency_links=[
+            "git+https://github.com/scikit-image/scikit-image.git#egg=scikit-image-0.13.0dev"
+        ],
         entry_points={
             "console_scripts": [
                 "cellprofiler=cellprofiler.__main__:main"
@@ -431,18 +335,23 @@ setuptools.setup(
         include_package_data=True,
         install_requires=[
             "cellh5",
-            "centrosome>=1.0.4",
+            "centrosome",
             "h5py",
             "inflect",
             "javabridge",
             "libtiff",
-            "matplotlib",
+            "mahotas",
+            "matplotlib<2.0.0",
             "MySQL-python",
             "numpy",
             "prokaryote>=1.0.11",
+            "pyamg==3.1.1",
             "pytest",
             "python-bioformats",
             "pyzmq",
+            "raven",
+            "requests",
+            "scikit-image==0.13.0dev",
             "scipy"
         ],
         keywords="",
@@ -463,5 +372,5 @@ setuptools.setup(
             "pytest"
         ],
         url="https://github.com/CellProfiler/CellProfiler",
-        version="2.4.0rc1"
+        version="3.0.0rc1"
 )

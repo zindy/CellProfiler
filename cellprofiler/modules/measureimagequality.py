@@ -1,6 +1,6 @@
 '''<b>Measure Image Quality</b> measures features that indicate image quality.
 <hr>
-This module can collect measurements indicative of possible image abberations,
+This module can collect measurements indicating possible image abberations,
 e.g. blur (poor focus), intensity, saturation (i.e., the percentage
 of pixels in the image that are minimal and maximal). Details and guidance for
 each of these measures is provided in the settings help.
@@ -203,7 +203,7 @@ class MeasureImageQuality(cpm.Module):
             image divided by mean image intensity. Since it is tailored for autofocusing
             applications (difference focus for the same field of view), it assumes that the
             overall intensity and the number of objects in the image is constant, making it less
-            useful for comparision images of different fields of view. For distinguishing
+            useful for comparison images of different fields of view. For distinguishing
             extremely blurry images, however, it performs well.</li>
             <li><i>%(F_LOCAL_FOCUS_SCORE)s:</i> A local version of the Focus Score, it subdivides the
             image into non-overlapping tiles, computes the normalized variance for each, and

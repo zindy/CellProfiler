@@ -228,7 +228,16 @@ class PreferencesDlg(wx.Dialog):
         """
         cmaps = list(matplotlib.cm.datad.keys())
         cmaps.sort()
-        return [["Default Input Folder",
+
+        return [
+            [
+                "Send Telemetry to the CellProfiler Team",
+                cellprofiler.preferences.get_telemetry,
+                cellprofiler.preferences.set_telemetry,
+                CHOICE,
+                cellprofiler.gui.help.SHOW_TELEMETRY_HELP
+            ],
+                ["Default Input Folder",
                  cellprofiler.preferences.get_default_image_directory,
                  cellprofiler.preferences.set_default_image_directory,
                  DIRBROWSE, cellprofiler.gui.help.DEFAULT_IMAGE_FOLDER_HELP],
@@ -316,12 +325,6 @@ class PreferencesDlg(wx.Dialog):
                  <li>Visualization of parameter space for image analysis. Pretorius AJ, Bray MA, Carpenter AE
                  and Ruddle RA. (2011) IEEE Transactions on Visualization and Computer Graphics, 17(12), 2402-2411.</li>
                  </ul>"""],
-                ['Use more figure space',
-                 cellprofiler.preferences.get_use_more_figure_space,
-                 cellprofiler.preferences.set_use_more_figure_space,
-                 CHOICE,
-                 cellprofiler.gui.help.USE_MORE_FIGURE_SPACE_HELP
-                 ],
                 ['Maximum number of workers',
                  cellprofiler.preferences.get_max_workers,
                  cellprofiler.preferences.set_max_workers,

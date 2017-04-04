@@ -122,14 +122,12 @@ import thread
 import random
 import zmq
 import cStringIO as StringIO
-import gc
 import traceback
 from weakref import WeakSet
 
 import cellprofiler.workspace as cpw
 import cellprofiler.measurement as cpmeas
 import cellprofiler.preferences as cpprefs
-from cellprofiler.gui.errordialog import ED_STOP, ED_SKIP
 from cellprofiler.analysis import \
     PipelinePreferencesRequest, InitialMeasurementsRequest, WorkRequest, \
     NoWorkReply, MeasurementsReport, InteractionRequest, DisplayRequest, \
@@ -154,6 +152,10 @@ DEADMAN_START_ADDR = "inproc://deadmanstart"
 DEADMAN_START_MSG = "STARTED"
 NOTIFY_ADDR = "inproc://notify"
 NOTIFY_STOP = "STOP"
+
+ED_STOP = "Stop"
+ED_CONTINUE = "Continue"
+ED_SKIP = "Skip"
 
 the_zmq_context = zmq.Context.instance()
 
@@ -397,7 +399,6 @@ class AnalysisWorker(object):
             if should_process:
                 abort = False
                 for image_set_number in image_set_numbers:
-                    gc.collect()
                     try:
                         self.pipeline_listener.image_set_number = image_set_number
                         last_workspace = current_pipeline.run_image_set(

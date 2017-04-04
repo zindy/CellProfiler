@@ -80,13 +80,14 @@ except:
     logger.warning("MySQL could not be loaded.", exc_info=True)
     HAS_MYSQL_DB = False
 
+import cellprofiler
 import cellprofiler.module as cpm
 import cellprofiler.setting as cps
 from cellprofiler.setting import YES, NO
 import cellprofiler.preferences as cpprefs
 import cellprofiler.measurement as cpmeas
 from cellprofiler.pipeline import GROUP_INDEX, M_MODIFICATION_TIMESTAMP
-from identify import M_NUMBER_OBJECT_NUMBER
+from cellprofiler.measurement import M_NUMBER_OBJECT_NUMBER
 from cellprofiler.modules.loadimages import C_FILE_NAME, C_PATH_NAME
 from cellprofiler.gui.help import USING_METADATA_TAGS_REF, USING_METADATA_HELP_REF, USING_METADATA_GROUPING_HELP_REF
 from cellprofiler.preferences import \
@@ -228,7 +229,7 @@ OT_DICTIONARY = {
     "Single object table": OT_COMBINE,
     "Single object view": OT_VIEW
 }
-from identify import C_PARENT
+from cellprofiler.measurement import C_PARENT, M_NUMBER_OBJECT_NUMBER
 
 T_EXPERIMENT = "Experiment"
 T_EXPERIMENT_PROPERTIES = "Experiment_Properties"
@@ -472,7 +473,7 @@ class ExportToDatabase(cpm.Module):
             the properties file so that CellProfiler Analyst centers cells
             using that object's center.
             <p>You can manually change this choice in the properties file by
-            edting the <i>cell_x_loc</i> and <i>cell_y_loc</i> properties.
+            editing the <i>cell_x_loc</i> and <i>cell_y_loc</i> properties.
             </p>
             <p>Note that if there are no objects defined in the pipeline (e.g.
             if only using MeasureImageQuality and/or Illumination Correction modules),
@@ -615,7 +616,7 @@ class ExportToDatabase(cpm.Module):
             Note that the actual class table will be named by prepending the table prefix
             (if any) to what you enter here.
             <p>You can manually change this choice in the properties file by
-            edting the <i>class_table</i> field. Leave this field blank if you are
+            editing the <i>class_table</i> field. Leave this field blank if you are
             not using the classifier or do not need the table written to the database</p>.""")
 
         self.properties_classification_type = cps.Choice(
@@ -632,7 +633,7 @@ class ExportToDatabase(cpm.Module):
             to "image".</li>
             </ul>
             You can manually change this choice in the properties file by
-            edting the <i>classification_type</i> field.
+            editing the <i>classification_type</i> field.
             """ % globals())
 
         self.create_workspace_file = cps.Binary(
@@ -3720,7 +3721,6 @@ check_tables = yes
         return result
 
     def write_workspace_file(self, workspace):
-        from cellprofiler.utilities.version import version_number
         '''If requested, write a workspace file with selected measurements'''
         if self.db_type == DB_SQLITE:
             name = os.path.splitext(self.sqlite_file.value)[0]
@@ -3737,7 +3737,7 @@ check_tables = yes
         fd = open(file_name, "wb")
         header_text = """CellProfiler Analyst workflow
 version: 1
-CP version : %d\n""" % version_number
+CP version : %d\n""" % int(re.sub(r"\.|rc\d{1}", "", cellprofiler.__version__))
         fd.write(header_text)
         display_tool_text = ""
         for workspace_group in self.workspace_measurement_groups:

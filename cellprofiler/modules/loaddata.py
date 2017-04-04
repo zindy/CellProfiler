@@ -1,4 +1,4 @@
-'''<b>Load Data</b> loads text or numerical data to be associated with images, and 
+'''<b>Load Data</b> loads text or numerical data to be associated with images, and
 can also load images specified by file names.
 <hr>
 This module loads a file that supplies text or numerical data associated with
@@ -1078,7 +1078,7 @@ class LoadData(cpm.Module):
             image_size = None
             for image_name in self.other_providers('imagegroup'):
                 provider = self.fetch_provider(image_name, m)
-                image_set.get_providers().append(provider)
+                image_set.providers.append(provider)
                 image = image_set.get_image(image_name)
                 pixel_data = image.pixel_data
                 m.add_image_measurement("_".join((C_MD5_DIGEST, image_name)),
@@ -1122,12 +1122,13 @@ class LoadData(cpm.Module):
             workspace.display_data.statistics = statistics
 
     def display(self, workspace, figure):
-        if hasattr(workspace.display_data, "warning"):
-            from cellprofiler.gui.errordialog import show_warning
-            show_warning("Images have different sizes",
-                         workspace.display_data.warning,
-                         cpprefs.get_show_report_bad_sizes_dlg,
-                         cpprefs.set_show_report_bad_sizes_dlg)
+        # if hasattr(workspace.display_data, "warning"):
+        #     from cellprofiler.gui.errordialog import show_warning
+        #     show_warning("Images have different sizes",
+        #                  workspace.display_data.warning,
+        #                  cpprefs.get_show_report_bad_sizes_dlg,
+        #                  cpprefs.set_show_report_bad_sizes_dlg)
+
         figure.set_subplots((1, 1))
         figure.subplot_table(0, 0, workspace.display_data.statistics)
 

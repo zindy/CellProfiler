@@ -1724,6 +1724,11 @@ can run ImageJ 1.0 plugins, but there may be incompatibilities.</li></ul>"""
 CHECK_FOR_UPDATES_HELP = """
 Controls whether CellProfiler looks for updates on startup."""
 
+SHOW_TELEMETRY_HELP = """
+Allow limited and anonymous usage statistics and exception reports to be sent
+to the CellProfiler team to help improve CellProfiler.
+"""
+
 SHOW_STARTUP_BLURB_HELP = """
 Controls whether CellProfiler displays an orientation message on startup."""
 
@@ -1741,11 +1746,6 @@ SHOW_REPORT_BAD_SIZES_DLG_HELP = """
 Determines whether CellProfiler will display a warning dialog
 if images of different sizes are loaded together in an image set.
 Check this preference to show the message box or uncheck it to stop display."""
-
-USE_MORE_FIGURE_SPACE_HELP = """
-Determines whether to reduce the padding space
-and font sizes in module display figures. It is suggested that you
-also set the <i>Title font</i> preference to a smaller value."""
 
 PRIMARY_OUTLINE_COLOR_HELP = """
 Sets the color used for the outline of the object of interest in the
@@ -1876,7 +1876,6 @@ EACH_PREFERENCE_HELP = (
     ('Show the "Exiting test mode" message', SHOW_EXITING_TEST_MODE_HELP),
     ("Warn if images are different sizes", SHOW_REPORT_BAD_SIZES_DLG_HELP),
     ("Show the parameter sampling menu", PARAMETER_SAMPLING_MENU_HELP),
-    ("Use more figure space", USE_MORE_FIGURE_SPACE_HELP),
     ("Maximum number of workers", MAX_WORKERS_HELP),
     ("Temporary folder", TEMP_DIR_HELP),
     ("Save pipeline and/or file list in addition to project", SAVE_PIPELINE_WITH_PROJECT_HELP),
@@ -2411,10 +2410,14 @@ for you. If you have defined a plate metadata tag (with the name, "Plate"),
 the plate viewer will group your images by plate and display a choice box
 that lets you pick the plate to display.
 <p>
-Click on a well to see the images for that well. Channels are composited together if there is more
-than one channel and you can control the color used to display each channel.
-If you have more than one site per well and have site metadata (with the name,
-"Site"), the plate viewer will tile the sites when displaying.
+Click on a well to see the images for that well. If you have more than one site 
+per well and have site metadata (with the name, "Site"), the plate viewer will 
+tile the sites when displaying, and the values under "X" and "Y" determine the 
+position of each site in the tiled grid.
+<p>
+The values for "Red", "Green", and "Blue" in each row are brightness multipliers- 
+changing the values will determine the color and scaling used to display each 
+channel.  "Alpha" determines the weight each channel contributes to the summed image.  
 """
 
 #########################################################

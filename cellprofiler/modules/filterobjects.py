@@ -39,8 +39,7 @@ import scipy.ndimage as scind
 from scipy.sparse import coo_matrix
 import traceback
 
-from cellprofiler.modules.identify import FF_PARENT, FF_CHILDREN_COUNT, \
-     M_LOCATION_CENTER_X, M_LOCATION_CENTER_Y
+from cellprofiler.measurement import M_LOCATION_CENTER_X, M_LOCATION_CENTER_Y, FF_CHILDREN_COUNT, FF_PARENT
 import cellprofiler.image as cpi
 import cellprofiler.module as cpm
 import cellprofiler.object as cpo
@@ -571,7 +570,7 @@ class FilterObjects(cpm.Module):
                  [m.measurement.get_image_name(workspace.pipeline)
                   for m in self.measurements]
                  if image is not None
-                 and image in workspace.image_set.get_names()]
+                 and image in workspace.image_set.names]
             if len(image_names) == 0:
                 # Measurement isn't image-based
                 if src_objects.has_parent_image:
