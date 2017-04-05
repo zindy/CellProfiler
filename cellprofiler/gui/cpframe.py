@@ -89,6 +89,7 @@ ID_DEBUG_CHOOSE_RANDOM_IMAGE_SET = wx.NewId()
 ID_DEBUG_RELOAD = wx.NewId()
 ID_DEBUG_PDB = wx.NewId()
 ID_DEBUG_VIEW_WORKSPACE = wx.NewId()
+ID_DEBUG_CONSOLE = wx.NewId()
 
 # ~*~
 ID_SAMPLE_INIT = wx.NewId()
@@ -636,6 +637,7 @@ class CPFrame(wx.Frame):
         self.__menu_debug.Append(ID_DEBUG_VIEW_WORKSPACE, "View Workspace", "Show the workspace viewer")
         if not hasattr(sys, 'frozen') or os.getenv('CELLPROFILER_DEBUG'):
             self.__menu_debug.Append(ID_DEBUG_RELOAD, "Reload Modules' Source")
+            self.__menu_debug.Append(ID_DEBUG_CONSOLE, "Break Into Python Console")
             self.__menu_debug.Append(ID_DEBUG_PDB, "Break Into Debugger")
             #
             # Lee wants the wx debugger
@@ -724,6 +726,7 @@ class CPFrame(wx.Frame):
         wx.EVT_MENU(self, ID_HELP_ABOUT, self.about)
         wx.EVT_MENU(self, ID_OPTIONS_PREFERENCES, self.__on_preferences)
         wx.EVT_MENU(self, ID_WINDOW_CLOSE_ALL, self.__on_close_all)
+        wx.EVT_MENU(self, ID_DEBUG_CONSOLE, self.__debug_console)
         wx.EVT_MENU(self, ID_DEBUG_PDB, self.__debug_pdb)
         accelerator_table = wx.AcceleratorTable(
                 [(wx.ACCEL_CMD, ord('N'), ID_FILE_ANALYZE_IMAGES),
@@ -984,6 +987,11 @@ class CPFrame(wx.Frame):
             wx.MessageBox(cellprofiler.gui.help.HELP_ON_MODULE_BUT_NONE_SELECTED,
                           "No module selected",
                           style=wx.OK | wx.ICON_INFORMATION)
+
+    @staticmethod
+    def __debug_console(event):
+        import wx.lib.inspection
+        wx.lib.inspection.InspectionTool().Show()
 
     @staticmethod
     def __debug_pdb(event):
